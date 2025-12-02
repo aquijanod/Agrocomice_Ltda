@@ -1,0 +1,9 @@
+{
+  "name": "Agro Comice CRM",
+  "description": "Sistema de gestión integral para Agro Comice Ltda con capacidades de IA para asistencia, imágenes y video.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
