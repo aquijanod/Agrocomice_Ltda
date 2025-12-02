@@ -82,7 +82,10 @@ const PermissionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-800">Perfiles de Permisos</h1>
+        <div>
+            <h1 className="text-3xl font-bold text-slate-800">Perfiles de Permisos</h1>
+            <p className="text-slate-500">Configura matrices de acceso granular por entidad.</p>
+        </div>
         {canCreate && (
           <button onClick={handleNew} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Plus size={18} /> Nuevo Perfil

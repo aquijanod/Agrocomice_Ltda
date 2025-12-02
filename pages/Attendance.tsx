@@ -151,9 +151,12 @@ const Attendance: React.FC = () => {
       
       {/* HEADER & FILTERS */}
       <div className="space-y-4">
-        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
-            <Search className="text-blue-600" /> Búsqueda Asistencia
-        </h1>
+        <div>
+            <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                <Search className="text-blue-600" /> Búsqueda Asistencia
+            </h1>
+            <p className="text-slate-500 mt-1">Consulta y gestiona los registros históricos de asistencia del personal.</p>
+        </div>
         
         {/* FILTER BAR */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">

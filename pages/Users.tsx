@@ -66,7 +66,10 @@ const UsersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
+        <div>
+            <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
+            <p className="text-slate-500">Administra el acceso y la información del personal de la empresa.</p>
+        </div>
         {canCreate && (
           <button onClick={handleNew} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
             <Plus size={18} /> Nuevo Usuario

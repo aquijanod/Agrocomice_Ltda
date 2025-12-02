@@ -136,9 +136,12 @@ const AttendanceUpload: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
-        <Upload className="text-blue-600" /> Carga Data Asistencia
-      </h1>
+      <div>
+        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
+            <Upload className="text-blue-600" /> Carga Data Asistencia
+        </h1>
+        <p className="text-slate-500 mt-1">Sube archivos CSV de relojes control para procesar la asistencia masiva.</p>
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
         {!file ? (
