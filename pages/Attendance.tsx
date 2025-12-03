@@ -148,9 +148,8 @@ const Attendance: React.FC = () => {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = 210;
         const pageHeight = 297;
-        const margin = 0; // Set to 0 because we handle margins internally, especially for the header
         
-        // Render Header & Calendar (Part 1)
+        // Render Header & Info (Part 1)
         let currentY = 0;
         if (headerPart) {
             const canvas1 = await html2canvas(headerPart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
@@ -164,23 +163,19 @@ const Attendance: React.FC = () => {
         // Render Table (Part 2)
         if (tablePart && selectedDay) {
             const canvas2 = await html2canvas(tablePart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-            // Add margin for the table part (visual consistency)
-            const tableMargin = 10;
-            const contentWidth = pageWidth - (tableMargin * 2);
-            const imgH2 = (canvas2.height * contentWidth) / canvas2.width;
+            // Align widths by using full page width (padding handled by CSS)
+            const imgH2 = (canvas2.height * pageWidth) / canvas2.width;
             
             // Check if it fits on the current page
-            const spaceLeft = pageHeight - currentY - tableMargin;
+            const spaceLeft = pageHeight - currentY;
             
             if (imgH2 > spaceLeft) {
                 // Not enough space? Add new page and reset Y
                 pdf.addPage();
-                currentY = tableMargin;
-            } else {
-                currentY += 5; // spacing
+                currentY = 0;
             }
             
-            pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', tableMargin, currentY, contentWidth, imgH2);
+            pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', 0, currentY, pageWidth, imgH2);
         }
 
         const userName = getSelectedUserInfo()?.name.replace(/\s+/g, '_') || 'Reporte';
@@ -421,13 +416,14 @@ const Attendance: React.FC = () => {
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           <div ref={reportRef} className="w-[800px] bg-white text-slate-900">
             
-            {/* PART 1: HEADER & CALENDAR */}
+            {/* PART 1: HEADER & INFO */}
             <div id="report-part-1">
                 {/* Corporate Header */}
                 <div className="bg-blue-950 text-white p-8 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-3xl shadow-lg">
-                            🍐
+                        {/* Corrected Icon Alignment - Matches Login */}
+                        <div className="w-16 h-16 bg-white rounded-tl-2xl rounded-br-2xl flex items-center justify-center shadow-lg shrink-0">
+                            <span className="text-4xl">🍐</span>
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold tracking-tight">Agro Comice Ltda</h1>
@@ -462,67 +458,30 @@ const Attendance: React.FC = () => {
                             </div>
                         </div>
                     )}
-
-                    {/* Compact Calendar Snapshot */}
-                    <div className="mb-4">
-                        <h3 className="font-bold text-lg mb-4 text-slate-800 border-l-4 border-blue-600 pl-4">Resumen de Asistencia Mensual</h3>
-                        <div className="border border-slate-300 rounded-sm overflow-hidden">
-                            <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-300">
-                                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
-                                    <div key={d} className="py-2 text-center font-bold text-[10px] uppercase text-slate-600">{d}</div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-7 bg-white">
-                                {Array.from({ length: startDay }).map((_, i) => (
-                                    <div key={`p-empty-${i}`} className="h-14 border-r border-b border-slate-200 bg-slate-50/30"></div>
-                                ))}
-                                {Array.from({ length: daysInMonth }).map((_, i) => {
-                                    const day = i + 1;
-                                    const record = getRecordForDay(day);
-                                    const isPresent = record?.status === 'Presente';
-                                    const isAbsent = record?.status === 'Ausente';
-                                    return (
-                                        <div key={`p-day-${day}`} className={`h-14 border-r border-b border-slate-200 p-1 relative ${isPresent ? 'bg-blue-50/30' : ''}`}>
-                                            <span className="text-xs font-bold text-slate-500">{day}</span>
-                                            {isPresent && (
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                                    <span className="text-xl text-blue-600 font-bold">✔</span>
-                                                </div>
-                                            )}
-                                            {isAbsent && (
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                                    <span className="text-lg text-red-300 font-bold mb-1">✕</span>
-                                                    <div className="text-[8px] bg-red-100 text-red-700 px-1 rounded font-bold uppercase">Aus</div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             {/* PART 2: DETAIL TABLE */}
             {selectedDay && logs.length > 0 && (
-                <div id="report-part-2" className="p-12 pt-0">
+                <div id="report-part-2" className="p-10 pt-0">
                      <h3 className="font-bold text-xl mb-6 text-slate-800 border-l-4 border-blue-600 pl-4">
                          Detalle del Día: {selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
                      </h3>
                      <table className="w-full text-left border border-slate-300 rounded-sm">
                          <thead>
                              <tr className="bg-slate-100 border-b border-slate-300">
-                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Hora</th>
+                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Nombre</th>
                                  <th className="p-4 text-sm font-bold text-slate-700 uppercase">Departamento</th>
+                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Fecha y Hora</th>
                                  <th className="p-4 text-sm font-bold text-slate-700 uppercase">Dispositivo</th>
                              </tr>
                          </thead>
                          <tbody>
                              {logs.map((log, i) => (
                                  <tr key={i} className="border-b border-slate-200">
-                                     <td className="p-4 text-sm font-mono font-bold text-slate-800">{log.dateTime.split(' ')[1]}</td>
+                                     <td className="p-4 text-sm font-bold text-slate-800">{log.userName}</td>
                                      <td className="p-4 text-sm text-slate-700">{log.department}</td>
+                                     <td className="p-4 text-sm font-mono text-slate-700">{log.dateTime}</td>
                                      <td className="p-4 text-sm text-slate-700">{log.deviceId}</td>
                                  </tr>
                              ))}
@@ -538,7 +497,7 @@ const Attendance: React.FC = () => {
             
             {/* Fallback if no logs for footer in Part 1 if Part 2 is missing */}
             {(!selectedDay || logs.length === 0) && (
-                <div className="p-12 pt-0">
+                <div className="p-10 pt-0">
                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center text-slate-500 text-sm italic mb-8">
                         * No se ha seleccionado un día específico con registros para el detalle.
                     </div>
