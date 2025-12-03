@@ -118,6 +118,16 @@ const ActivitiesPage: React.FC = () => {
       }
   };
 
+  // Helper para formatear fecha a DD-MM-YYYY
+  const formatDate = (dateStr: string | undefined) => {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -149,7 +159,7 @@ const ActivitiesPage: React.FC = () => {
                           <div className="flex flex-wrap gap-4 text-sm text-slate-500 mt-2">
                               <div className="flex items-center gap-1">
                                   <Calendar size={14} className="text-slate-400"/>
-                                  {act.startDate} <span className="mx-1">al</span> {act.endDate}
+                                  {formatDate(act.startDate)} <span className="mx-1">al</span> {formatDate(act.endDate)}
                               </div>
                               <div className="flex items-center gap-1">
                                   <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">

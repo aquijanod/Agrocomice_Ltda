@@ -36,21 +36,16 @@ const Attendance: React.FC = () => {
       const defaultUser = data.find(u => u.id === '1') || data[0];
       if (defaultUser) setSelectedUser(defaultUser.id);
       
-      // Default Dates: August 2025 (matching the sample data)
+      // Default Dates: Today
       const today = new Date();
-      // Use sample data range if today is not in 2025, otherwise current month
-      const isSamplePeriod = true; 
+      // Adjust for local timezone to ensure we get the correct "today" string yyyy-mm-dd
+      const localToday = new Date(today.getTime() - (today.getTimezoneOffset() * 60000));
+      const todayStr = localToday.toISOString().split('T')[0];
+
+      setStartDate(todayStr);
+      setEndDate(todayStr);
       
-      if (isSamplePeriod) {
-          setStartDate('2025-08-01');
-          setEndDate('2025-08-31');
-          setCurrentCalendarDate(new Date(2025, 7, 1)); // Month is 0-indexed (7=Aug)
-      } else {
-          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-          const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          setStartDate(firstDay.toISOString().split('T')[0]);
-          setEndDate(lastDay.toISOString().split('T')[0]);
-      }
+      setCurrentCalendarDate(new Date(today.getFullYear(), today.getMonth(), 1));
     });
   }, []);
 

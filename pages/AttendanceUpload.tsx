@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle, Save, X } from 'lucide-react';
 import { useAuth } from '../AuthContext';
-import { bulkSaveAttendance } from '../services/dataService';
-import { AttendanceRecord } from '../types';
+import { bulkSaveLogs } from '../services/dataService';
 import { useNavigate } from 'react-router-dom';
 
 const AttendanceUpload: React.FC = () => {
@@ -65,25 +64,36 @@ const AttendanceUpload: React.FC = () => {
         // Skip Header row if exists (assuming standard format)
         // Format: "id","usuario_id","nombre","departamento","fecha_hora",...
         
-        for (let i = 1; i < rows.length; i++) {
+        for (let i = 0; i < rows.length; i++) {
             const row = rows[i].trim();
             if (!row) continue;
             
             // Basic regex to handle quoted CSV parts
-            // Matches: "value", 123, "val,ue"
             const matches = row.match(/(?:\"([^\"]*)\")|([^,]+)/g);
             
             if (matches && matches.length >= 5) {
-                // Cleanup quotes and get index values
+                // Cleanup quotes
                 const clean = (val: string) => val ? val.replace(/^"|"$/g, '').trim() : '';
                 
-                // Index 1: usuario_id (numeric in CSV, string in App)
-                const userId = clean(matches[1]); // Assuming 2nd column
-                const name = clean(matches[2]);   // Assuming 3rd column
-                const dateTime = clean(matches[4]); // Assuming 5th column "2025-08-22 15:28:59"
+                // Index Mapping based on provided sample:
+                // "id", "userId", "name", "dept", "dateTime", "deviceId"
+                const userId = clean(matches[1]);
+                const userName = clean(matches[2]);
+                const dept = clean(matches[3]);
+                const dateTime = clean(matches[4]); // "2025-08-22 15:28:59"
+                const deviceId = matches[5] ? clean(matches[5]) : 'Unknown';
                 
+                // Skip header row if detected literally
+                if (userId === 'usuario_id' || userName === 'nombre') continue;
+
                 if (userId && dateTime) {
-                    parsed.push({ userId, name, dateTime });
+                    parsed.push({ 
+                        userId, 
+                        userName, 
+                        department: dept, 
+                        dateTime, 
+                        deviceId 
+                    });
                 }
             }
         }
@@ -100,32 +110,13 @@ const AttendanceUpload: React.FC = () => {
     setLoading(true);
 
     try {
-        // Convert raw preview data to unique Daily Attendance Records
-        const recordsToSave: AttendanceRecord[] = [];
-        const seen = new Set(); // To avoid duplicates in this batch
-
-        previewData.forEach(item => {
-            const dateOnly = item.dateTime.split(' ')[0]; // YYYY-MM-DD
-            const key = `${item.userId}-${dateOnly}`;
-            
-            if (!seen.has(key)) {
-                recordsToSave.push({
-                    id: Math.random().toString(36).substr(2, 9),
-                    userId: item.userId, // CSV ID matches App ID? (1->1)
-                    date: dateOnly,
-                    status: 'Presente',
-                    notes: 'Importado desde CSV'
-                });
-                seen.add(key);
-            }
-        });
-
-        await bulkSaveAttendance(recordsToSave);
+        await bulkSaveLogs(previewData);
         setLoading(false);
         alert('Datos cargados exitosamente');
         navigate('/attendance/search');
     } catch (e) {
-        setError('Error al guardar datos.');
+        console.error(e);
+        setError('Error al guardar datos. Verifique conexión.');
         setLoading(false);
     }
   };
@@ -162,7 +153,7 @@ const AttendanceUpload: React.FC = () => {
                 <label htmlFor="csvUpload" className="cursor-pointer flex flex-col items-center">
                     <FileText size={48} className="text-slate-400 mb-4" />
                     <p className="text-lg font-medium text-slate-700">Arrastra tu archivo CSV aquí o <span className="text-blue-600 hover:underline">explora</span></p>
-                    <p className="text-sm text-slate-400 mt-2">Formato esperado: id, usuario_id, nombre, departamento, fecha_hora...</p>
+                    <p className="text-sm text-slate-400 mt-2">Formato esperado: id, usuario_id, nombre, departamento, fecha_hora, dispositivo...</p>
                 </label>
             </div>
         ) : (
@@ -193,22 +184,24 @@ const AttendanceUpload: React.FC = () => {
                                 <tr>
                                     <th className="p-3">ID Usuario</th>
                                     <th className="p-3">Nombre</th>
+                                    <th className="p-3">Departamento</th>
                                     <th className="p-3">Fecha/Hora</th>
-                                    <th className="p-3">Estado Detectado</th>
+                                    <th className="p-3">Dispositivo</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {previewData.slice(0, 50).map((row, i) => (
                                     <tr key={i} className="hover:bg-slate-50">
                                         <td className="p-3">{row.userId}</td>
-                                        <td className="p-3">{row.name}</td>
+                                        <td className="p-3">{row.userName}</td>
+                                        <td className="p-3 text-slate-500">{row.department}</td>
                                         <td className="p-3 font-mono">{row.dateTime}</td>
-                                        <td className="p-3 text-green-600 font-medium">Presente</td>
+                                        <td className="p-3 text-slate-500 text-xs">{row.deviceId}</td>
                                     </tr>
                                 ))}
                                 {previewData.length > 50 && (
                                     <tr>
-                                        <td colSpan={4} className="p-3 text-center text-slate-400 italic">
+                                        <td colSpan={5} className="p-3 text-center text-slate-400 italic">
                                             ... y {previewData.length - 50} más
                                         </td>
                                     </tr>

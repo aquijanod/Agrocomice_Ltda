@@ -1,6 +1,13 @@
+import { createClient } from '@supabase/supabase-js';
 import { User, RoleDef, Permission, PermissionMatrix, AttendanceRecord, AttendanceLog, Activity, APP_ENTITIES } from '../types';
 
-// Helper for mock encryption
+// --- CONFIGURACIÓN SUPABASE ---
+const supabaseUrl = 'https://zyfkpvlfthmbhehmofti.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5ZmtwdmxmdGhtYmhlaG1vZnRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3OTExNDIsImV4cCI6MjA4MDM2NzE0Mn0.eBqlIO0CleJzH-ugOllPE4MnrlSZ4La6AXqxIf8j_RA';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Helper for simple encoding (legacy support from mock)
 const mockEncrypt = (pass: string) => btoa(pass);
 
 // Default Matrix Builder
@@ -12,304 +19,307 @@ const createEmptyMatrix = () => {
   return matrix;
 };
 
-// --- INITIAL MOCK USERS (Matched to CSV IDs where possible) ---
-let MOCK_USERS: User[] = [
-  { id: '1', name: 'Alfonso Quijano', email: 'alfonso@agrocomice.cl', role: 'Supervisor', avatar: 'https://picsum.photos/200', password: mockEncrypt('123456') },
-  { id: '2', name: 'Ana Maza', email: 'ana@agrocomice.cl', role: 'Admin', avatar: 'https://picsum.photos/201', password: mockEncrypt('123456') },
-  { id: '4', name: 'Felipe', email: 'felipe@agrocomice.cl', role: 'Trabajador', avatar: 'https://picsum.photos/203', password: mockEncrypt('123456') },
-  { id: '3', name: 'Carlos Ruiz', email: 'carlos@agrocomice.cl', role: 'Trabajador', avatar: 'https://picsum.photos/202', password: mockEncrypt('123456') },
-];
+// --- AUTHENTICATION ---
 
-// Initial Permissions (Profiles/Matrices)
-const adminMatrix = createEmptyMatrix();
-APP_ENTITIES.forEach(e => adminMatrix[e] = { view: true, create: true, edit: true, delete: true });
+export const authenticate = async (email: string, passwordInput: string): Promise<User | null> => {
+    // Nota: En un entorno de producción real, usar supabase.auth.signInWithPassword
+    // Aquí usamos la tabla 'users' personalizada según el script SQL solicitado.
+    const encryptedPass = mockEncrypt(passwordInput);
+    
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('password', encryptedPass)
+        .single();
 
-const basicMatrix = createEmptyMatrix();
-basicMatrix['Usuarios'] = { view: true, create: false, edit: false, delete: false };
-basicMatrix['Roles'] = { view: true, create: false, edit: false, delete: false };
-basicMatrix['Permisos'] = { view: false, create: false, edit: false, delete: false };
-basicMatrix['Asistencia'] = { view: true, create: true, edit: true, delete: false };
-basicMatrix['Actividades'] = { view: true, create: true, edit: true, delete: false }; // Trabajadores can manage activities
-basicMatrix['Herramientas IA'] = { view: true, create: true, edit: false, delete: false };
+    if (error || !data) {
+        console.error("Auth error:", error);
+        return null;
+    }
 
-let MOCK_PERMISSIONS: Permission[] = [
-  { id: 'p1', name: 'Acceso Total', description: 'Control total del sistema', matrix: adminMatrix },
-  { id: 'p2', name: 'Acceso Básico', description: 'Solo visualización y operación limitada', matrix: basicMatrix },
-];
-
-let MOCK_ROLES: RoleDef[] = [
-  { id: 'r1', name: 'Admin', description: 'Administrador General', permissionId: 'p1' },
-  { id: 'r2', name: 'Supervisor', description: 'Gestión de personal', permissionId: 'p1' },
-  { id: 'r4', name: 'Agrónomo', description: 'Especialista técnico', permissionId: 'p2' }, 
-  { id: 'r3', name: 'Trabajador', description: 'Personal de campo', permissionId: 'p2' },
-];
-
-// --- ACTIVITIES MOCK DATA ---
-let MOCK_ACTIVITIES: Activity[] = [
-  { 
-    id: 'a1', 
-    name: 'Revisión Riego Sector Norte', 
-    startDate: new Date().toISOString().split('T')[0], 
-    endDate: new Date().toISOString().split('T')[0], 
-    description: 'Verificar presión de bombas y goteros en hileras 1-20.', 
-    assigneeId: '1', 
-    status: 'Pendiente', 
-    attachments: [] 
-  },
-  { 
-    id: 'a2', 
-    name: 'Aplicación Fertilizante', 
-    startDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], 
-    endDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], 
-    description: 'Aplicar urea según protocolo técnico.', 
-    assigneeId: '4', 
-    status: 'En Progreso', 
-    attachments: [] 
-  }
-];
-
-// --- RAW CSV DATA FOR INITIALIZATION ---
-const RAW_CSV_DATA = `
-"3afb06bf",1,Alfonso Quijano,Casa Colbún,"2025-08-22 15:28:59","001_Colbún"
-"3afbfa2c",1,Alfonso Quijano,Casa Colbún,"2025-08-27 19:00:04","001_Colbún"
-"3afc542d",4,Felipe,Casa Colbún,"2025-08-27 19:00:09","001_Colbún"
-"659b7a55",1,Alfonso Quijano,Casa Colbún,"2025-07-08 15:07:02","001_Colbún"
-"659c3c86",1,Alfonso Quijano,Casa Colbún,"2025-07-08 15:13:11","001_Colbún"
-"659c9306",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:14:13","001_Colbún"
-"659d6e29",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:15:34","001_Colbún"
-"659db051",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:17:14","001_Colbún"
-"659df8c9",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:20:44","001_Colbún"
-"659e4956",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:25:40","001_Colbún"
-"659e983a",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:27:12","001_Colbún"
-"659f4f72",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:31:23","001_Colbún"
-"659f9133",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:35:03","001_Colbún"
-"659fe1cb",2,User,Casa Colbún,"2025-08-08 15:35:49","001_Colbún"
-"65a0343f",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:36:11","001_Colbún"
-"65a077da",2,User,Casa Colbún,"2025-08-08 15:37:20","001_Colbún"
-"65a10ec3",2,User,Casa Colbún,"2025-08-08 15:55:01","001_Colbún"
-"65a14e48",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:55:04","001_Colbún"
-"65a1931e",2,User,Casa Colbún,"2025-08-08 16:16:52","001_Colbún"
-"65a1e6d2",1,Alfonso Quijano,Casa Colbún,"2025-08-08 16:16:55","001_Colbún"
-"65a2377c",2,User,Casa Colbún,"2025-08-08 16:18:24","001_Colbún"
-"65a28b21",1,Alfonso Quijano,Casa Colbún,"2025-08-08 16:18:28","001_Colbún"
-"724a061e",1,Alfonso Quijano,Casa Colbún,"2025-08-19 16:05:29","001_Colbún"
-"724aec44",2,User,Casa Colbún,"2025-08-19 16:05:32","001_Colbún"
-"724b72d3",1,Alfonso Quijano,Casa Colbún,"2025-08-19 16:07:30","001_Colbún"
-"724ba805",2,User,Casa Colbún,"2025-08-19 16:07:33","001_Colbún"
-"8d146282",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:07:02","001_Colbún"
-"8d15555b",1,Alfonso Quijano,Casa Colbún,"2025-08-08 15:13:11","001_Colbún"
-"8d1837af",1,Alfonso Quijano,Casa Colbún,"2025-08-08 18:30:37","001_Colbún"
-"8d194bf7",2,User,Casa Colbún,"2025-08-08 18:30:40","001_Colbún"
-"8d1995b1",1,Alfonso Quijano,Casa Colbún,"2025-08-08 18:34:48","001_Colbún"
-"8d19ea1c",2,User,Casa Colbún,"2025-08-08 18:34:51","001_Colbún"
-"96a7e7b4",1,Alfonso Quijano,Casa Colbún,"2025-08-22 15:45:59","001_Colbún"
-"a1c97215",1,Alfonso Quijano,Casa Colbún,"2025-08-27 12:05:09","001_Colbún"
-"baf8af13",4,Felipe,Casa Colbún,"2025-08-27 20:20:09","001_Colbún"
-"cee43f67",1,Alfonso Quijano,Casa Colbún,"2025-08-22 17:23:59","001_Colbún"
-"f8926fa6",2,User,Casa Colbún,"2025-08-08 18:21:05","001_Colbún"
-"f8938fd4",1,Alfonso Quijano,Casa Colbún,"2025-08-08 18:21:09","001_Colbún"
-"f8941fef",1,Alfonso Quijano,Casa Colbún,"2025-08-11 08:30:37","001_Colbún"
-"f8948eef",2,User,Casa Colbún,"2025-08-11 18:30:40","001_Colbún"
-"f894d897",1,Alfonso Quijano,Casa Colbún,"2025-08-09 10:34:48","001_Colbún"
-"f8952a67",2,User,Casa Colbún,"2025-08-09 18:34:51","001_Colbún"
-"f89568d8",1,Alfonso Quijano,Casa Colbún,"2025-08-09 11:40:33","001_Colbún"
-"f895b544",2,User,Casa Colbún,"2025-08-09 11:40:37","001_Colbún"
-"f895f44c",1,Alfonso Quijano,Casa Colbún,"2025-08-11 09:31:53","001_Colbún"
-"f8964099",2,User,Casa Colbún,"2025-08-11 09:31:55","001_Colbún"
-`;
-
-let attendanceDB: AttendanceRecord[] = [];
-let logsDB: AttendanceLog[] = [];
-
-// Initialize DBs from RAW CSV
-const initData = () => {
-    const lines = RAW_CSV_DATA.trim().split('\n');
-    lines.forEach(line => {
-        const matches = line.match(/(?:\"([^\"]*)\")|([^,]+)/g);
-        if(matches && matches.length >= 6) {
-             const clean = (val: string) => val ? val.replace(/^"|"$/g, '').trim() : '';
-             const userId = clean(matches[1]);
-             const userName = clean(matches[2]);
-             const dept = clean(matches[3]);
-             const dateTime = clean(matches[4]);
-             const deviceId = clean(matches[5]);
-
-             if (userId && dateTime) {
-                 logsDB.push({ id: Math.random().toString(36), userId, userName, department: dept, dateTime, deviceId });
-                 const dateOnly = dateTime.split(' ')[0];
-                 const exists = attendanceDB.find(r => r.userId === userId && r.date === dateOnly);
-                 if (!exists) {
-                     attendanceDB.push({ id: Math.random().toString(36), userId, date: dateOnly, status: 'Presente', notes: 'Sistema biométrico' });
-                 }
-             }
-        }
-    });
+    return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        avatar: data.avatar,
+        password: data.password // Mantener para lógica interna si es necesario
+    };
 };
-
-initData();
 
 // --- HELPER: Resolve Permissions ---
 export const resolveUserPermissions = async (roleName: string): Promise<PermissionMatrix> => {
-    return new Promise(resolve => setTimeout(() => {
-        const role = MOCK_ROLES.find(r => r.name === roleName);
-        if (!role) {
-            resolve(createEmptyMatrix());
-            return;
-        }
-        const perm = MOCK_PERMISSIONS.find(p => p.id === role.permissionId);
-        resolve(perm ? perm.matrix : createEmptyMatrix());
-    }, 200));
+    // 1. Get Role
+    const { data: roleData } = await supabase
+        .from('roles')
+        .select('permission_id')
+        .eq('name', roleName)
+        .single();
+
+    if (!roleData || !roleData.permission_id) return createEmptyMatrix();
+
+    // 2. Get Permission Matrix
+    const { data: permData } = await supabase
+        .from('permissions')
+        .select('matrix')
+        .eq('id', roleData.permission_id)
+        .single();
+
+    return permData ? (permData.matrix as PermissionMatrix) : createEmptyMatrix();
 };
 
 // --- USERS CRUD ---
-export const getUsers = async (): Promise<User[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_USERS]), 300));
+
+export const getUsers = async (): Promise<User[]> => {
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('name', { ascending: true }); // Ordenado alfabéticamente
+    
+    if (error) throw error;
+    return data.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        avatar: u.avatar,
+        password: u.password
+    }));
+};
 
 export const saveUser = async (user: User): Promise<User> => {
-  return new Promise(resolve => setTimeout(() => {
-    const userToSave = { ...user };
-    const existing = MOCK_USERS.find(u => u.id === user.id);
-    if (user.password && user.password !== existing?.password) {
-        userToSave.password = mockEncrypt(user.password);
-    } else if (!user.password && existing) {
-        userToSave.password = existing.password;
+    // Prepare payload. If password changes, encrypt it.
+    const payload: any = {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar
+    };
+    
+    // Only update password if provided (for edits) or required (for new)
+    if (user.password) {
+        payload.password = mockEncrypt(user.password);
     }
-    if (existing) {
-      MOCK_USERS = MOCK_USERS.map(u => u.id === user.id ? userToSave : u);
+    
+    if (user.id && user.id.length > 10) { // Simple check if UUID-ish
+        // Update
+        const { data, error } = await supabase
+            .from('users')
+            .update(payload)
+            .eq('id', user.id)
+            .select()
+            .single();
+        if (error) throw error;
+        return { ...user, ...data };
     } else {
-      MOCK_USERS.push({ ...userToSave, id: Math.random().toString(36).substr(2, 9) });
+        // Insert
+        const { data, error } = await supabase
+            .from('users')
+            .insert([payload])
+            .select()
+            .single();
+        if (error) throw error;
+        return { ...user, id: data.id };
     }
-    resolve(userToSave);
-  }, 300));
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-  return new Promise(resolve => setTimeout(() => {
-    MOCK_USERS = MOCK_USERS.filter(u => u.id !== id);
-    resolve();
-  }, 300));
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) throw error;
 };
 
 // --- ROLES CRUD ---
-export const getRoles = async (): Promise<RoleDef[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_ROLES]), 300));
+
+export const getRoles = async (): Promise<RoleDef[]> => {
+    const { data, error } = await supabase
+        .from('roles')
+        .select('*')
+        .order('name', { ascending: true }); // Ordenado alfabéticamente
+        
+    if (error) throw error;
+    return data.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        permissionId: r.permission_id
+    }));
+};
 
 export const saveRole = async (role: RoleDef): Promise<RoleDef> => {
-  return new Promise(resolve => setTimeout(() => {
-    const exists = MOCK_ROLES.find(r => r.id === role.id);
-    if (exists) {
-      MOCK_ROLES = MOCK_ROLES.map(r => r.id === role.id ? role : r);
+    const payload = {
+        name: role.name,
+        description: role.description,
+        permission_id: role.permissionId
+    };
+
+    if (role.id && role.id.length > 10) {
+        const { error } = await supabase.from('roles').update(payload).eq('id', role.id);
+        if (error) throw error;
     } else {
-      MOCK_ROLES.push({ ...role, id: Math.random().toString(36).substr(2, 9) });
+        const { data, error } = await supabase.from('roles').insert([payload]).select().single();
+        if (error) throw error;
+        role.id = data.id;
     }
-    resolve(role);
-  }, 300));
+    return role;
 };
 
 export const deleteRole = async (id: string): Promise<void> => {
-  return new Promise(resolve => setTimeout(() => {
-    MOCK_ROLES = MOCK_ROLES.filter(r => r.id !== id);
-    resolve();
-  }, 300));
+    const { error } = await supabase.from('roles').delete().eq('id', id);
+    if (error) throw error;
 };
 
 // --- PERMISSIONS CRUD ---
-export const getPermissions = async (): Promise<Permission[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_PERMISSIONS]), 300));
+
+export const getPermissions = async (): Promise<Permission[]> => {
+    const { data, error } = await supabase
+        .from('permissions')
+        .select('*')
+        .order('name', { ascending: true }); // Ordenado alfabéticamente
+        
+    if (error) throw error;
+    return data as Permission[];
+};
 
 export const savePermission = async (perm: Permission): Promise<Permission> => {
-  return new Promise(resolve => setTimeout(() => {
-    const exists = MOCK_PERMISSIONS.find(p => p.id === perm.id);
-    if (exists) {
-      MOCK_PERMISSIONS = MOCK_PERMISSIONS.map(p => p.id === perm.id ? perm : p);
+    const payload = {
+        name: perm.name,
+        description: perm.description,
+        matrix: perm.matrix
+    };
+
+    if (perm.id && perm.id.length > 10) {
+        const { error } = await supabase.from('permissions').update(payload).eq('id', perm.id);
+        if (error) throw error;
     } else {
-      MOCK_PERMISSIONS.push({ ...perm, id: Math.random().toString(36).substr(2, 9) });
+        const { data, error } = await supabase.from('permissions').insert([payload]).select().single();
+        if (error) throw error;
+        perm.id = data.id;
     }
-    resolve(perm);
-  }, 300));
+    return perm;
 };
 
 export const deletePermission = async (id: string): Promise<void> => {
-  return new Promise(resolve => setTimeout(() => {
-    MOCK_PERMISSIONS = MOCK_PERMISSIONS.filter(p => p.id !== id);
-    resolve();
-  }, 300));
+    const { error } = await supabase.from('permissions').delete().eq('id', id);
+    if (error) throw error;
 };
 
 // --- ACTIVITIES CRUD ---
+
 export const getActivities = async (): Promise<Activity[]> => {
-    return new Promise(resolve => setTimeout(() => resolve([...MOCK_ACTIVITIES]), 300));
+    const { data, error } = await supabase.from('activities').select('*');
+    if (error) throw error;
+    return data.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        startDate: a.start_date,
+        endDate: a.end_date,
+        assigneeId: a.assignee_id,
+        status: a.status,
+        attachments: a.attachments || []
+    }));
 };
 
 export const saveActivity = async (activity: Activity): Promise<Activity> => {
-    return new Promise(resolve => setTimeout(() => {
-        const exists = MOCK_ACTIVITIES.find(a => a.id === activity.id);
-        if (exists) {
-            MOCK_ACTIVITIES = MOCK_ACTIVITIES.map(a => a.id === activity.id ? activity : a);
-        } else {
-            MOCK_ACTIVITIES.push({ ...activity, id: Math.random().toString(36).substr(2, 9) });
-        }
-        resolve(activity);
-    }, 300));
+    const payload = {
+        name: activity.name,
+        description: activity.description,
+        start_date: activity.startDate,
+        end_date: activity.endDate,
+        assignee_id: activity.assigneeId,
+        status: activity.status,
+        attachments: activity.attachments
+    };
+
+    if (activity.id && activity.id.length > 10) {
+        const { error } = await supabase.from('activities').update(payload).eq('id', activity.id);
+        if (error) throw error;
+    } else {
+        const { data, error } = await supabase.from('activities').insert([payload]).select().single();
+        if (error) throw error;
+        activity.id = data.id;
+    }
+    return activity;
 };
 
 export const deleteActivity = async (id: string): Promise<void> => {
-    return new Promise(resolve => setTimeout(() => {
-        MOCK_ACTIVITIES = MOCK_ACTIVITIES.filter(a => a.id !== id);
-        resolve();
-    }, 300));
+    const { error } = await supabase.from('activities').delete().eq('id', id);
+    if (error) throw error;
 };
 
 // --- ATTENDANCE ---
-export const getAttendance = async (userId: string, month: string): Promise<AttendanceRecord[]> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const records = attendanceDB.filter(r => r.userId === userId && r.date.startsWith(month));
-      resolve(records);
-    }, 300);
-  });
-};
 
+// Synthesize AttendanceRecords (for Calendar) from Logs (Present) ONLY.
+// REMOVED: Dependency on 'absences' table.
 export const getAttendanceByRange = async (userId: string, startDate: string, endDate: string): Promise<AttendanceRecord[]> => {
-    return new Promise(resolve => {
-      setTimeout(() => {
-        const records = attendanceDB.filter(r => r.userId === userId && r.date >= startDate && r.date <= endDate);
-        resolve(records);
-      }, 500); 
+    const records: AttendanceRecord[] = [];
+
+    // 1. Fetch Logs (Presence)
+    // We get unique dates where the user has at least one log
+    const { data: logs, error: logsError } = await supabase
+        .from('attendance_logs')
+        .select('date_time')
+        .eq('user_id', userId)
+        .gte('date_time', `${startDate} 00:00:00`)
+        .lte('date_time', `${endDate} 23:59:59`);
+    
+    if (logsError) throw logsError;
+
+    // Map unique log dates to "Presente" records
+    const presentDates = new Set<string>();
+    logs?.forEach(l => {
+        const dateOnly = l.date_time.split('T')[0];
+        if (!presentDates.has(dateOnly)) {
+            presentDates.add(dateOnly);
+            records.push({
+                id: `log-${dateOnly}`,
+                userId,
+                date: dateOnly,
+                status: 'Presente'
+            });
+        }
     });
+
+    // NOTE: 'Absences' table logic removed. Days without logs will be rendered as empty/white in calendar.
+    return records;
 };
 
 export const getAttendanceLogs = async (userId: string, date: string): Promise<AttendanceLog[]> => {
-    return new Promise(resolve => {
-        setTimeout(() => {
-            const logs = logsDB.filter(l => l.userId === userId && l.dateTime.startsWith(date));
-            logs.sort((a,b) => a.dateTime.localeCompare(b.dateTime));
-            resolve(logs);
-        }, 200);
-    });
+    const { data, error } = await supabase
+        .from('attendance_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date_time', `${date} 00:00:00`)
+        .lte('date_time', `${date} 23:59:59`)
+        .order('date_time', { ascending: true });
+
+    if (error) throw error;
+
+    return data.map((l: any) => ({
+        id: l.id,
+        userId: l.user_id,
+        userName: l.user_name_snapshot || 'Unknown',
+        department: l.department,
+        dateTime: new Date(l.date_time).toLocaleString('es-CL'), // Convert UTC/ISO to locale for display
+        deviceId: l.device_id
+    }));
 };
 
-export const saveAttendance = async (record: AttendanceRecord): Promise<void> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      attendanceDB = attendanceDB.filter(r => !(r.userId === record.userId && r.date === record.date));
-      attendanceDB.push(record);
-      resolve();
-    }, 300);
-  });
-};
+// Batch Insert for Upload
+export const bulkSaveLogs = async (logs: any[]): Promise<void> => {
+    // Transform flat preview data into DB structure
+    const dbLogs = logs.map(l => ({
+        user_id: l.userId,
+        user_name_snapshot: l.userName,
+        department: l.department,
+        date_time: l.dateTime, // Ensure format YYYY-MM-DD HH:mm:ss
+        device_id: l.deviceId
+    }));
 
-export const bulkSaveAttendance = async (records: AttendanceRecord[]): Promise<void> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      records.forEach(newRecord => {
-        const existsIndex = attendanceDB.findIndex(r => r.userId === newRecord.userId && r.date === newRecord.date);
-        if (existsIndex === -1) {
-            attendanceDB.push(newRecord);
-        } else {
-            if (attendanceDB[existsIndex].status !== 'Presente') {
-                attendanceDB[existsIndex] = newRecord;
-            }
-        }
-      });
-      resolve();
-    }, 500);
-  });
+    const { error } = await supabase
+        .from('attendance_logs')
+        .insert(dbLogs);
+    
+    if (error) throw error;
 };

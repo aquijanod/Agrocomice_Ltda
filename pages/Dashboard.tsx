@@ -16,47 +16,149 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ElementType
   </div>
 );
 
-// --- MOCK WEATHER DATA GENERATOR ---
-const generateHourlyData = (baseTemp: number, condition: 'sunny'|'cloudy'|'rainy') => {
-    const data = [];
-    for (let i = 0; i < 24; i += 3) { // Every 3 hours to fit chart nicely
-        let temp = baseTemp;
+// --- REALISTIC WEATHER DATA GENERATOR ---
+// Generates a diurnal cycle curve (low in morning, high in afternoon)
+const generateRealisticHourly = (min: number, max: number, condition: string) => {
+    // Time points: 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00
+    const times = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
+    
+    // Temperature factors (0.0 = min, 1.0 = max)
+    // 06:00 is coldest, 15:00 is hottest
+    const tempProfile = [0.3, 0.15, 0.0, 0.35, 0.8, 1.0, 0.85, 0.45];
+
+    return times.map((time, i) => {
+        const range = max - min;
+        let temp = Math.round(min + (range * tempProfile[i]));
+
+        // Add slight organic variation
+        temp += Math.floor(Math.random() * 2) - 0.5;
+
         let precip = 0;
-        let wind = 10;
+        let wind = 10 + Math.floor(Math.random() * 8); // Base wind 10-18 km/h
 
-        // Simple mock simulation
-        if (i < 6) temp -= 5;
-        else if (i < 15) temp += 5;
-        else temp -= 2;
-
-        if (condition === 'rainy') {
-            precip = Math.floor(Math.random() * 60) + 20;
-            wind += 10;
-        } else if (condition === 'cloudy') {
+        if (condition.includes('Lluvia')) {
+            precip = 40 + Math.floor(Math.random() * 50);
+            wind += 8;
+        } else if (condition.includes('Nublado')) {
              precip = Math.floor(Math.random() * 20);
         }
 
-        wind += Math.floor(Math.random() * 10);
-
-        data.push({
-            time: `${i}:00`,
-            temp: Math.floor(temp),
-            precip: precip,
-            wind: wind
-        });
-    }
-    return data;
+        return {
+            time,
+            temp: Math.round(temp),
+            precip,
+            wind
+        };
+    });
 };
 
-// 7 Days of detailed data
+// 7 Days of detailed data matching Colbun reference
 const weatherData = [
-    { id: 0, day: 'Hoy', fullDay: 'miércoles', date: '12 p.m.', max: 27, min: 14, current: 27, condition: 'Soleado', icon: Sun, hourly: generateHourlyData(25, 'sunny'), humidity: 41, wind: 11, rainProb: 0 },
-    { id: 1, day: 'Jue', fullDay: 'jueves', date: 'Provisión', max: 32, min: 13, current: 31, condition: 'Parcialmente Nublado', icon: CloudSun, hourly: generateHourlyData(28, 'cloudy'), humidity: 45, wind: 14, rainProb: 10 },
-    { id: 2, day: 'Vie', fullDay: 'viernes', date: 'Provisión', max: 30, min: 12, current: 28, condition: 'Despejado', icon: Sun, hourly: generateHourlyData(26, 'sunny'), humidity: 38, wind: 12, rainProb: 0 },
-    { id: 3, day: 'Sáb', fullDay: 'sábado', date: 'Provisión', max: 29, min: 13, current: 25, condition: 'Nublado', icon: Cloud, hourly: generateHourlyData(24, 'cloudy'), humidity: 55, wind: 18, rainProb: 20 },
-    { id: 4, day: 'Dom', fullDay: 'domingo', date: 'Provisión', max: 24, min: 15, current: 22, condition: 'Lluvia Ligera', icon: CloudDrizzle, hourly: generateHourlyData(20, 'rainy'), humidity: 75, wind: 22, rainProb: 80 },
-    { id: 5, day: 'Lun', fullDay: 'lunes', date: 'Provisión', max: 30, min: 14, current: 28, condition: 'Parcial', icon: CloudSun, hourly: generateHourlyData(27, 'cloudy'), humidity: 50, wind: 15, rainProb: 5 },
-    { id: 6, day: 'Mar', fullDay: 'martes', date: 'Provisión', max: 30, min: 12, current: 29, condition: 'Soleado', icon: Sun, hourly: generateHourlyData(28, 'sunny'), humidity: 40, wind: 10, rainProb: 0 },
+    { 
+        id: 0, 
+        day: 'Hoy', 
+        fullDay: 'miércoles', 
+        date: 'Actual', 
+        max: 32, 
+        min: 13, 
+        current: 31, 
+        condition: 'Soleado', 
+        icon: Sun, 
+        hourly: generateRealisticHourly(13, 32, 'Soleado'), 
+        humidity: 26, 
+        wind: 14, 
+        rainProb: 0 
+    },
+    { 
+        id: 1, 
+        day: 'Jue', 
+        fullDay: 'jueves', 
+        date: 'Pronóstico', 
+        max: 32, 
+        min: 13, 
+        current: 28, 
+        condition: 'Parcialmente Nublado', 
+        icon: CloudSun, 
+        hourly: generateRealisticHourly(13, 32, 'Parcial'), 
+        humidity: 30, 
+        wind: 12, 
+        rainProb: 0 
+    },
+    { 
+        id: 2, 
+        day: 'Vie', 
+        fullDay: 'viernes', 
+        date: 'Pronóstico', 
+        max: 30, 
+        min: 12, 
+        current: 27, 
+        condition: 'Soleado', 
+        icon: Sun, 
+        hourly: generateRealisticHourly(12, 30, 'Soleado'), 
+        humidity: 28, 
+        wind: 11, 
+        rainProb: 0 
+    },
+    { 
+        id: 3, 
+        day: 'Sáb', 
+        fullDay: 'sábado', 
+        date: 'Pronóstico', 
+        max: 29, 
+        min: 13, 
+        current: 25, 
+        condition: 'Nublado', 
+        icon: Cloud, 
+        hourly: generateRealisticHourly(13, 29, 'Nublado'), 
+        humidity: 45, 
+        wind: 15, 
+        rainProb: 10 
+    },
+    { 
+        id: 4, 
+        day: 'Dom', 
+        fullDay: 'domingo', 
+        date: 'Pronóstico', 
+        max: 24, 
+        min: 15, 
+        current: 20, 
+        condition: 'Lluvia', 
+        icon: CloudRain, 
+        hourly: generateRealisticHourly(15, 24, 'Lluvia'), 
+        humidity: 82, 
+        wind: 22, 
+        rainProb: 90 
+    },
+    { 
+        id: 5, 
+        day: 'Lun', 
+        fullDay: 'lunes', 
+        date: 'Pronóstico', 
+        max: 30, 
+        min: 14, 
+        current: 26, 
+        condition: 'Parcialmente Nublado', 
+        icon: CloudSun, 
+        hourly: generateRealisticHourly(14, 30, 'Parcial'), 
+        humidity: 40, 
+        wind: 13, 
+        rainProb: 5 
+    },
+    { 
+        id: 6, 
+        day: 'Mar', 
+        fullDay: 'martes', 
+        date: 'Pronóstico', 
+        max: 30, 
+        min: 12, 
+        current: 28, 
+        condition: 'Soleado', 
+        icon: Sun, 
+        hourly: generateRealisticHourly(12, 30, 'Soleado'), 
+        humidity: 35, 
+        wind: 10, 
+        rainProb: 0 
+    },
 ];
 
 type WeatherMetric = 'temp' | 'precip' | 'wind';
@@ -118,6 +220,16 @@ const Dashboard: React.FC = () => {
 
   // Helper to get user name
   const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Sin asignar';
+
+  // Helper para formatear fecha a DD-MM-YYYY
+  const formatDate = (dateStr: string | undefined) => {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+  };
 
   // Logic to get activities that match filters AND a specific day
   const getActivitiesForDay = (day: number) => {
@@ -253,7 +365,7 @@ const Dashboard: React.FC = () => {
                          {/* Dynamic Icon */}
                         <currentWeatherData.icon size={64} className={`
                             ${currentWeatherData.condition.includes('Soleado') || currentWeatherData.condition.includes('Despejado') ? 'text-amber-400 fill-amber-400' : ''}
-                            ${currentWeatherData.condition.includes('Nublado') || currentWeatherData.condition.includes('Lluvia') ? 'text-slate-400 fill-slate-200' : ''}
+                            ${currentWeatherData.condition.includes('Nublado') || currentWeatherData.condition.includes('Lluvia') || currentWeatherData.condition.includes('Parcial') ? 'text-slate-400 fill-slate-200' : ''}
                         `} />
                         <div>
                             <div className="flex items-baseline gap-2">
@@ -265,7 +377,7 @@ const Dashboard: React.FC = () => {
                                 <span className="mx-2">•</span>
                                 <span className="capitalize">{currentWeatherData.fullDay}</span>
                             </div>
-                            <p className="text-slate-400 text-xs mt-0.5">Colbun, Colbún</p>
+                            <p className="text-slate-400 text-xs mt-0.5">Colbún, Maule</p>
                         </div>
                     </div>
                     
@@ -363,7 +475,7 @@ const Dashboard: React.FC = () => {
                                 <day.icon size={24} className={`mb-2 
                                     ${day.icon === Sun ? 'text-amber-400 fill-amber-400' : 
                                       day.icon === Cloud ? 'text-slate-400 fill-slate-200' : 
-                                      day.icon === CloudDrizzle ? 'text-blue-400' :
+                                      day.icon === CloudDrizzle || day.icon === CloudRain ? 'text-blue-400' :
                                       'text-slate-500'}
                                 `} />
                                 <div className="text-xs font-bold text-slate-700">
@@ -435,7 +547,7 @@ const Dashboard: React.FC = () => {
                                         'bg-green-500'
                                     }`}></span>
                                     <h4 className="font-bold text-slate-800 text-sm">{act.name}</h4>
-                                    <span className="text-xs text-slate-400">| {act.startDate}</span>
+                                    <span className="text-xs text-slate-400">| {formatDate(act.startDate)}</span>
                                 </div>
                                 <p className="text-xs text-slate-500 line-clamp-1 ml-4">{act.description}</p>
                             </div>
@@ -557,11 +669,11 @@ const Dashboard: React.FC = () => {
                      <div className="grid grid-cols-2 gap-4">
                          <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Fecha Inicio</label>
-                            <p className="text-slate-800 text-sm font-medium mt-1">{viewActivity.startDate}</p>
+                            <p className="text-slate-800 text-sm font-medium mt-1">{formatDate(viewActivity.startDate)}</p>
                          </div>
                          <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Fecha Término</label>
-                            <p className="text-slate-800 text-sm font-medium mt-1">{viewActivity.endDate}</p>
+                            <p className="text-slate-800 text-sm font-medium mt-1">{formatDate(viewActivity.endDate)}</p>
                          </div>
                      </div>
                      <div className="grid grid-cols-2 gap-4">

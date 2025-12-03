@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
+import { authenticate } from '../services/dataService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -10,26 +11,29 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      // Mock successful login
-      const mockUser: User = {
-        id: '1',
-        name: 'Roberto Gómez',
-        email: email,
-        role: 'Admin',
-        avatar: 'https://picsum.photos/200'
-      };
-      onLogin(mockUser);
-      navigate('/');
-      setLoading(false);
-    }, 1000);
+    try {
+        const user = await authenticate(email, password);
+        
+        if (user) {
+            onLogin(user);
+            navigate('/');
+        } else {
+            setError('Credenciales inválidas. Intente nuevamente.');
+        }
+    } catch (err) {
+        console.error(err);
+        setError('Error de conexión.');
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -68,6 +72,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 placeholder="••••••••"
               />
             </div>
+
+            {error && (
+                <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 text-center">
+                    {error}
+                </div>
+            )}
 
             <button 
               type="submit" 
