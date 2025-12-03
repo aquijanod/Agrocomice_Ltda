@@ -19,12 +19,12 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ElementType
 // --- REALISTIC WEATHER DATA GENERATOR ---
 // Generates a diurnal cycle curve (low in morning, high in afternoon)
 const generateRealisticHourly = (min: number, max: number, condition: string) => {
-    // Time points: 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00
+    // Time points: Full 24h cycle in 3h intervals
     const times = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
     
     // Temperature factors (0.0 = min, 1.0 = max)
-    // 06:00 is coldest, 15:00 is hottest
-    const tempProfile = [0.3, 0.15, 0.0, 0.35, 0.8, 1.0, 0.85, 0.45];
+    // 06:00 is coldest (sunrise), 15:00 is hottest
+    const tempProfile = [0.25, 0.10, 0.0, 0.35, 0.75, 1.0, 0.85, 0.45];
 
     return times.map((time, i) => {
         const range = max - min;
@@ -414,7 +414,7 @@ const Dashboard: React.FC = () => {
                 {/* Chart Section (Interactive) */}
                 <div className="flex-1 w-full min-h-0 relative -ml-4">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                        <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
