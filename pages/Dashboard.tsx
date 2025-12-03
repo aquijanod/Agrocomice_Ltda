@@ -236,7 +236,7 @@ const Dashboard: React.FC = () => {
                     loading="lazy" 
                     allowFullScreen
                     referrerPolicy="no-referrer-when-downgrade"
-                    src="https://maps.google.com/maps?q=-35.6789825,-71.4169345&t=k&z=16&ie=UTF8&iwloc=&output=embed"
+                    src="https://maps.google.com/maps?q=-35.6789825,-71.4169345&t=k&z=17&ie=UTF8&iwloc=&output=embed"
                     title="Ubicación Colbún"
                 ></iframe>
                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1">
