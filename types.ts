@@ -49,6 +49,25 @@ export interface AttendanceLog {
   deviceId: string;
 }
 
+export type ActivityStatus = 'Pendiente' | 'En Progreso' | 'Completada' | 'Cancelada';
+
+export interface ActivityAttachment {
+  name: string;
+  url: string; // Base64 data URI
+  type: string;
+}
+
+export interface Activity {
+  id: string;
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  description: string;
+  assigneeId: string; // User ID
+  status: ActivityStatus;
+  attachments: ActivityAttachment[];
+}
+
 export interface NavItem {
   label: string;
   path: string;
@@ -62,4 +81,4 @@ export enum AIModelType {
   VIDEO_GEN = 'veo-3.1-fast-generate-preview'
 }
 
-export const APP_ENTITIES = ['Usuarios', 'Roles', 'Permisos', 'Asistencia', 'Herramientas IA'];
+export const APP_ENTITIES = ['Usuarios', 'Roles', 'Permisos', 'Asistencia', 'Actividades', 'Herramientas IA'];

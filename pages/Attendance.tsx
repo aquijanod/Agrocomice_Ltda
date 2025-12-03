@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, AttendanceRecord, AttendanceLog } from '../types';
-import { getUsers, getAttendanceByRange, saveAttendance, getAttendanceLogs } from '../services/dataService';
-import { ChevronLeft, ChevronRight, FileSpreadsheet, Search, Calendar, MapPin, Tablet } from 'lucide-react';
+import { getUsers, getAttendanceByRange, getAttendanceLogs } from '../services/dataService';
+import { ChevronLeft, ChevronRight, Search, Calendar, MapPin, Tablet, Printer, Loader2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const Attendance: React.FC = () => {
   const { permissions } = useAuth();
@@ -18,13 +20,14 @@ const Attendance: React.FC = () => {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Calendar View State
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-  // Check permissions
-  const canEdit = permissions?.['Asistencia']?.edit;
+  // PDF Report Ref
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getUsers().then(data => {
@@ -90,34 +93,13 @@ const Attendance: React.FC = () => {
 
   const daysInMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), 1).getDay(); 
-  const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+  
+  // Fix: Calendar uses Sunday as 0. Our header is Dom, Lun... so we use standard getDay()
+  const startDay = firstDayOfMonth; 
 
   const handleDayClick = (day: number) => {
     const newDate = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day);
     setSelectedDay(newDate);
-  };
-
-  const toggleAttendance = async () => {
-    if (!selectedUser || !selectedDay || !canEdit) return;
-    
-    const dateStr = selectedDay.toISOString().split('T')[0];
-    const existing = records.find(r => r.date === dateStr);
-    
-    if (existing) {
-        const newStatus = existing.status === 'Presente' ? 'Ausente' : 'Presente';
-        const newRecord = { ...existing, status: newStatus as any };
-        await saveAttendance(newRecord);
-        setRecords(prev => prev.map(p => p.date === dateStr ? newRecord : p));
-    } else {
-        const newRecord: AttendanceRecord = {
-            id: Math.random().toString(36),
-            userId: selectedUser,
-            date: dateStr,
-            status: 'Presente'
-        };
-        await saveAttendance(newRecord);
-        setRecords(prev => [...prev, newRecord]);
-    }
   };
 
   const changeMonth = (delta: number) => {
@@ -146,10 +128,76 @@ const Attendance: React.FC = () => {
   const canGoBack = currentMonthTime > startMonthTime;
   const canGoForward = currentMonthTime < endMonthTime;
 
+  // Helper for Print View
+  const getSelectedUserInfo = () => users.find(u => u.id === selectedUser);
+
+  // Generate PDF Handler
+  const handlePrint = async () => {
+    if (!reportRef.current) return;
+    
+    try {
+        setGeneratingPdf(true);
+        
+        // Wait a bit to ensure rendering
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Get elements
+        const headerPart = document.getElementById('report-part-1');
+        const tablePart = document.getElementById('report-part-2');
+
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const margin = 0; // Set to 0 because we handle margins internally, especially for the header
+        
+        // Render Header & Calendar (Part 1)
+        let currentY = 0;
+        if (headerPart) {
+            const canvas1 = await html2canvas(headerPart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            // Full width image
+            const imgH1 = (canvas1.height * pageWidth) / canvas1.width;
+            
+            pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, imgH1);
+            currentY = imgH1; 
+        }
+
+        // Render Table (Part 2)
+        if (tablePart && selectedDay) {
+            const canvas2 = await html2canvas(tablePart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            // Add margin for the table part (visual consistency)
+            const tableMargin = 10;
+            const contentWidth = pageWidth - (tableMargin * 2);
+            const imgH2 = (canvas2.height * contentWidth) / canvas2.width;
+            
+            // Check if it fits on the current page
+            const spaceLeft = pageHeight - currentY - tableMargin;
+            
+            if (imgH2 > spaceLeft) {
+                // Not enough space? Add new page and reset Y
+                pdf.addPage();
+                currentY = tableMargin;
+            } else {
+                currentY += 5; // spacing
+            }
+            
+            pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', tableMargin, currentY, contentWidth, imgH2);
+        }
+
+        const userName = getSelectedUserInfo()?.name.replace(/\s+/g, '_') || 'Reporte';
+        pdf.save(`Asistencia_${userName}_${currentCalendarDate.getMonth()+1}_${currentCalendarDate.getFullYear()}.pdf`);
+        
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        alert("Hubo un error al generar el PDF. Por favor intente nuevamente.");
+    } finally {
+        setGeneratingPdf(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       
-      {/* HEADER & FILTERS */}
+      {/* SCREEN VIEW HEADER & FILTERS */}
       <div className="space-y-4">
         <div>
             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
@@ -303,14 +351,20 @@ const Attendance: React.FC = () => {
                                 {selectedDay ? `Fecha: ${selectedDateStr}` : 'Seleccione un día en el calendario'}
                             </p>
                         </div>
-                        {selectedDay && canEdit && (
-                            <button 
-                                onClick={toggleAttendance}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentRecord?.status === 'Presente' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                            >
-                                {currentRecord?.status === 'Presente' ? 'Marcar Ausente/Borrar' : 'Marcar Presente'}
-                            </button>
-                        )}
+                        
+                        {/* Generate PDF Button */}
+                        <button 
+                            type="button"
+                            onClick={handlePrint}
+                            disabled={generatingPdf}
+                            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors flex items-center gap-2 disabled:opacity-70"
+                        >
+                            {generatingPdf ? (
+                                <><Loader2 size={16} className="animate-spin" /> Generando PDF...</>
+                            ) : (
+                                <><Printer size={16} /> Descargar Reporte (PDF)</>
+                            )}
+                        </button>
                     </div>
 
                     <div className="p-6 flex-1 overflow-x-auto">
@@ -358,6 +412,144 @@ const Attendance: React.FC = () => {
 
         </div>
       )}
+
+      {/* --- HIDDEN PDF REPORT TEMPLATE --- */}
+      {/* 
+         This div is rendered off-screen but is used by html2canvas to generate the PDF image.
+         We set a fixed width of 800px which maps well to A4 PDF generation.
+      */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <div ref={reportRef} className="w-[800px] bg-white text-slate-900">
+            
+            {/* PART 1: HEADER & CALENDAR */}
+            <div id="report-part-1">
+                {/* Corporate Header */}
+                <div className="bg-blue-950 text-white p-8 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-3xl shadow-lg">
+                            🍐
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight">Agro Comice Ltda</h1>
+                            <p className="text-blue-200 text-sm mt-1 uppercase tracking-wider font-medium">Gestión de Personal</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                         <div className="bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800">
+                            <p className="text-[10px] text-blue-300 uppercase tracking-wider font-bold mb-0.5">Reporte Generado</p>
+                            <p className="font-mono font-bold text-lg">{new Date().toLocaleDateString('es-ES')}</p>
+                         </div>
+                    </div>
+                </div>
+
+                <div className="p-10">
+                    <div className="flex items-center gap-2 mb-6 border-b border-slate-200 pb-4">
+                        <h2 className="text-xl font-bold text-slate-800">Reporte de Asistencia</h2>
+                    </div>
+
+                    {/* User Info & Filter Context */}
+                    {selectedUser && (
+                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-lg mb-8 grid grid-cols-2 gap-8 shadow-sm">
+                            <div>
+                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-2 tracking-wide">Trabajador</h3>
+                                <p className="text-2xl font-bold text-slate-900">{getSelectedUserInfo()?.name}</p>
+                                <p className="text-base text-slate-600 mt-1">{getSelectedUserInfo()?.role}</p>
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-2 tracking-wide">Periodo Visualizado</h3>
+                                <p className="text-2xl font-bold text-slate-900 capitalize">{currentCalendarDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</p>
+                                <p className="text-base text-slate-600 mt-1">Rango: {startDate} al {endDate}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Compact Calendar Snapshot */}
+                    <div className="mb-4">
+                        <h3 className="font-bold text-lg mb-4 text-slate-800 border-l-4 border-blue-600 pl-4">Resumen de Asistencia Mensual</h3>
+                        <div className="border border-slate-300 rounded-sm overflow-hidden">
+                            <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-300">
+                                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
+                                    <div key={d} className="py-2 text-center font-bold text-[10px] uppercase text-slate-600">{d}</div>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-7 bg-white">
+                                {Array.from({ length: startDay }).map((_, i) => (
+                                    <div key={`p-empty-${i}`} className="h-14 border-r border-b border-slate-200 bg-slate-50/30"></div>
+                                ))}
+                                {Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const day = i + 1;
+                                    const record = getRecordForDay(day);
+                                    const isPresent = record?.status === 'Presente';
+                                    const isAbsent = record?.status === 'Ausente';
+                                    return (
+                                        <div key={`p-day-${day}`} className={`h-14 border-r border-b border-slate-200 p-1 relative ${isPresent ? 'bg-blue-50/30' : ''}`}>
+                                            <span className="text-xs font-bold text-slate-500">{day}</span>
+                                            {isPresent && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                    <span className="text-xl text-blue-600 font-bold">✔</span>
+                                                </div>
+                                            )}
+                                            {isAbsent && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                    <span className="text-lg text-red-300 font-bold mb-1">✕</span>
+                                                    <div className="text-[8px] bg-red-100 text-red-700 px-1 rounded font-bold uppercase">Aus</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* PART 2: DETAIL TABLE */}
+            {selectedDay && logs.length > 0 && (
+                <div id="report-part-2" className="p-12 pt-0">
+                     <h3 className="font-bold text-xl mb-6 text-slate-800 border-l-4 border-blue-600 pl-4">
+                         Detalle del Día: {selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
+                     </h3>
+                     <table className="w-full text-left border border-slate-300 rounded-sm">
+                         <thead>
+                             <tr className="bg-slate-100 border-b border-slate-300">
+                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Hora</th>
+                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Departamento</th>
+                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Dispositivo</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {logs.map((log, i) => (
+                                 <tr key={i} className="border-b border-slate-200">
+                                     <td className="p-4 text-sm font-mono font-bold text-slate-800">{log.dateTime.split(' ')[1]}</td>
+                                     <td className="p-4 text-sm text-slate-700">{log.department}</td>
+                                     <td className="p-4 text-sm text-slate-700">{log.deviceId}</td>
+                                 </tr>
+                             ))}
+                         </tbody>
+                     </table>
+                     
+                    <div className="mt-8 pt-8 border-t border-slate-300 text-center text-xs text-slate-400">
+                        <p>Generado automáticamente por Sistema Agro Comice Ltda.</p>
+                        <p className="mt-1">Documento de uso interno.</p>
+                    </div>
+                </div>
+            )}
+            
+            {/* Fallback if no logs for footer in Part 1 if Part 2 is missing */}
+            {(!selectedDay || logs.length === 0) && (
+                <div className="p-12 pt-0">
+                     <div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center text-slate-500 text-sm italic mb-8">
+                        * No se ha seleccionado un día específico con registros para el detalle.
+                    </div>
+                    <div className="pt-8 border-t border-slate-300 text-center text-xs text-slate-400">
+                        <p>Generado automáticamente por Sistema Agro Comice Ltda.</p>
+                    </div>
+                </div>
+            )}
+
+          </div>
+      </div>
     </div>
   );
 };

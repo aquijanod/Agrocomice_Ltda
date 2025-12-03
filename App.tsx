@@ -8,6 +8,7 @@ import RolesPage from './pages/Roles';
 import PermissionsPage from './pages/Permissions';
 import Attendance from './pages/Attendance';
 import AttendanceUpload from './pages/AttendanceUpload';
+import ActivitiesPage from './pages/Activities';
 import AITools from './pages/AITools';
 import { AuthProvider, useAuth } from './AuthContext';
 
@@ -71,6 +72,14 @@ const AppRoutes: React.FC = () => {
                   } 
                 />
                 {/* Operations Routes */}
+                <Route 
+                  path="/activities" 
+                  element={
+                    <ProtectedRoute entity="Actividades">
+                      <ActivitiesPage />
+                    </ProtectedRoute>
+                  } 
+                />
                 <Route 
                   path="/attendance/search" 
                   element={

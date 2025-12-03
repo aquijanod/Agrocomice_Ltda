@@ -12,7 +12,8 @@ import {
   X,
   Bell,
   Upload,
-  Search
+  Search,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
@@ -45,8 +46,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     {
       title: 'Operaciones',
       items: [
-        { label: 'Carga Data Asistencia', path: '/attendance/upload', icon: Upload, entity: 'Asistencia' },
+        { label: 'Actividades y Tareas', path: '/activities', icon: ClipboardList, entity: 'Actividades' },
         { label: 'Búsqueda Asistencia', path: '/attendance/search', icon: Search, entity: 'Asistencia' },
+        { label: 'Carga Data Asistencia', path: '/attendance/upload', icon: Upload, entity: 'Asistencia' },
       ]
     },
     {
@@ -63,10 +65,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900 print:block">
       
       {/* Sidebar Desktop */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:flex flex-col`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:flex flex-col print:hidden`}>
         {/* Logo Area */}
         <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-700 bg-slate-900">
           <div className="w-8 h-8 bg-blue-500 rounded-tl-xl rounded-br-xl flex items-center justify-center">
@@ -130,10 +132,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Wrapper */}
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300 print:ml-0 print:block">
         
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-4 md:px-8 sticky top-0 z-40">
+        <header className="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-4 md:px-8 sticky top-0 z-40 print:hidden">
           
           {/* Mobile Toggle & Title */}
           <div className="flex items-center gap-4">
@@ -162,11 +164,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <p className="text-sm font-medium text-slate-800">{user?.name}</p>
                 <p className="text-xs text-slate-500">{user?.role}</p>
               </div>
-              <img 
-                src={user?.avatar || "https://picsum.photos/200"} 
-                alt="User" 
-                className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover" 
-              />
+              
+              {user?.avatar ? (
+                 <img 
+                    src={user.avatar} 
+                    alt="User" 
+                    className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover" 
+                 />
+              ) : (
+                 <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-blue-600 text-white flex items-center justify-center font-bold select-none text-sm">
+                    {user?.name?.charAt(0).toUpperCase() || '?'}
+                 </div>
+              )}
+
               <button 
                 onClick={handleLogout}
                 title="Cerrar Sesión"
@@ -179,7 +189,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         {/* Content Area */}
-        <main className="p-4 md:p-8 flex-1 overflow-y-auto bg-slate-50/50">
+        <main className="p-4 md:p-8 flex-1 overflow-y-auto bg-slate-50/50 print:p-0 print:overflow-visible">
           <div className="w-full animate-fade-in">
             {children}
           </div>
@@ -189,7 +199,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Overlay for mobile menu */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm print:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}

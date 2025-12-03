@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getUsers, saveUser, deleteUser, getRoles } from '../services/dataService';
 import { User, RoleDef } from '../types';
-import { Edit2, Trash2, Plus, X, Save, Eye } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Save, Eye, Upload, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
 const UsersPage: React.FC = () => {
@@ -41,7 +41,8 @@ const UsersPage: React.FC = () => {
 
   const handleNew = () => {
     if (!canCreate) return;
-    setEditingUser({ name: '', email: '', role: 'Trabajador', avatar: `https://picsum.photos/20${Math.floor(Math.random()*90)}`, password: '' });
+    // Avatar vacío por defecto, no autogenerado
+    setEditingUser({ name: '', email: '', role: 'Trabajador', avatar: '', password: '' });
     setIsViewMode(false);
     setIsModalOpen(true);
   };
@@ -61,6 +62,37 @@ const UsersPage: React.FC = () => {
       setIsModalOpen(false);
       loadData();
     }
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        if (file.size > 5 * 1024 * 1024) { 
+            alert("La imagen es muy pesada. Máximo 5MB.");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setEditingUser(prev => ({ ...prev, avatar: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
+  // Helper para renderizar Avatar o Inicial
+  const UserAvatar = ({ user, size = 'sm' }: { user: Partial<User>, size?: 'sm' | 'lg' }) => {
+      const dim = size === 'sm' ? 'w-10 h-10 text-sm' : 'w-32 h-32 text-4xl';
+      
+      if (user.avatar) {
+        return <img src={user.avatar} alt={user.name} className={`${dim} rounded-full object-cover border border-slate-200 bg-white`} />;
+      }
+      
+      const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
+      return (
+        <div className={`${dim} rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold border border-indigo-200 select-none`}>
+          {initial}
+        </div>
+      );
   };
 
   return (
@@ -91,7 +123,7 @@ const UsersPage: React.FC = () => {
             {users.map((user) => (
               <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                 <td className="p-4 flex items-center gap-3">
-                  <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  <UserAvatar user={user} size="sm" />
                   <span className="font-medium text-slate-800">{user.name}</span>
                 </td>
                 <td className="p-4 text-slate-600">{user.email}</td>
@@ -138,6 +170,30 @@ const UsersPage: React.FC = () => {
             </div>
             
             <form onSubmit={handleSave} className="space-y-4">
+              
+              {/* Avatar Management Section */}
+              <div className="flex flex-col items-center gap-4 py-4 border-b border-slate-100 mb-4">
+                 <UserAvatar user={editingUser} size="lg" />
+                 
+                 {!isViewMode && (
+                     <div className="flex gap-2">
+                        <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <Upload size={16} /> Subir Foto
+                            <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                        </label>
+                        {editingUser.avatar && (
+                            <button 
+                                type="button"
+                                onClick={() => setEditingUser(prev => ({...prev, avatar: ''}))}
+                                className="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                            >
+                                <Trash2 size={16} /> Eliminar
+                            </button>
+                        )}
+                     </div>
+                 )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
                 <input 
@@ -162,7 +218,7 @@ const UsersPage: React.FC = () => {
                 />
               </div>
 
-               {/* Password Field - Only show input in Edit/Create, hide in view */}
+               {/* Password Field */}
                {!isViewMode && (
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -170,7 +226,7 @@ const UsersPage: React.FC = () => {
                     </label>
                     <input 
                         type="password" 
-                        required={!editingUser.id} // Required only on create
+                        required={!editingUser.id}
                         value={editingUser.password || ''}
                         onChange={e => setEditingUser({...editingUser, password: e.target.value})}
                         className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"

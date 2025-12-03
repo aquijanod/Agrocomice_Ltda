@@ -1,4 +1,4 @@
-import { User, RoleDef, Permission, PermissionMatrix, AttendanceRecord, AttendanceLog, APP_ENTITIES } from '../types';
+import { User, RoleDef, Permission, PermissionMatrix, AttendanceRecord, AttendanceLog, Activity, APP_ENTITIES } from '../types';
 
 // Helper for mock encryption
 const mockEncrypt = (pass: string) => btoa(pass);
@@ -29,6 +29,7 @@ basicMatrix['Usuarios'] = { view: true, create: false, edit: false, delete: fals
 basicMatrix['Roles'] = { view: true, create: false, edit: false, delete: false };
 basicMatrix['Permisos'] = { view: false, create: false, edit: false, delete: false };
 basicMatrix['Asistencia'] = { view: true, create: true, edit: true, delete: false };
+basicMatrix['Actividades'] = { view: true, create: true, edit: true, delete: false }; // Trabajadores can manage activities
 basicMatrix['Herramientas IA'] = { view: true, create: true, edit: false, delete: false };
 
 let MOCK_PERMISSIONS: Permission[] = [
@@ -41,6 +42,30 @@ let MOCK_ROLES: RoleDef[] = [
   { id: 'r2', name: 'Supervisor', description: 'Gestión de personal', permissionId: 'p1' },
   { id: 'r4', name: 'Agrónomo', description: 'Especialista técnico', permissionId: 'p2' }, 
   { id: 'r3', name: 'Trabajador', description: 'Personal de campo', permissionId: 'p2' },
+];
+
+// --- ACTIVITIES MOCK DATA ---
+let MOCK_ACTIVITIES: Activity[] = [
+  { 
+    id: 'a1', 
+    name: 'Revisión Riego Sector Norte', 
+    startDate: new Date().toISOString().split('T')[0], 
+    endDate: new Date().toISOString().split('T')[0], 
+    description: 'Verificar presión de bombas y goteros en hileras 1-20.', 
+    assigneeId: '1', 
+    status: 'Pendiente', 
+    attachments: [] 
+  },
+  { 
+    id: 'a2', 
+    name: 'Aplicación Fertilizante', 
+    startDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], 
+    endDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], 
+    description: 'Aplicar urea según protocolo técnico.', 
+    assigneeId: '4', 
+    status: 'En Progreso', 
+    attachments: [] 
+  }
 ];
 
 // --- RAW CSV DATA FOR INITIALIZATION ---
@@ -100,14 +125,9 @@ let logsDB: AttendanceLog[] = [];
 const initData = () => {
     const lines = RAW_CSV_DATA.trim().split('\n');
     lines.forEach(line => {
-        // Simple regex to parse CSV line respecting potential quotes
         const matches = line.match(/(?:\"([^\"]*)\")|([^,]+)/g);
         if(matches && matches.length >= 6) {
              const clean = (val: string) => val ? val.replace(/^"|"$/g, '').trim() : '';
-             
-             // Map columns based on assumed CSV structure
-             // ID, UserID, Name, Dept, Date, Device
-             const id = clean(matches[0]);
              const userId = clean(matches[1]);
              const userName = clean(matches[2]);
              const dept = clean(matches[3]);
@@ -115,36 +135,18 @@ const initData = () => {
              const deviceId = clean(matches[5]);
 
              if (userId && dateTime) {
-                 // Add to Logs
-                 logsDB.push({
-                     id,
-                     userId,
-                     userName,
-                     department: dept,
-                     dateTime,
-                     deviceId
-                 });
-
-                 // Add to Daily Summary (Presente if log exists)
+                 logsDB.push({ id: Math.random().toString(36), userId, userName, department: dept, dateTime, deviceId });
                  const dateOnly = dateTime.split(' ')[0];
                  const exists = attendanceDB.find(r => r.userId === userId && r.date === dateOnly);
                  if (!exists) {
-                     attendanceDB.push({
-                         id: Math.random().toString(36),
-                         userId,
-                         date: dateOnly,
-                         status: 'Presente',
-                         notes: 'Sistema biométrico'
-                     });
+                     attendanceDB.push({ id: Math.random().toString(36), userId, date: dateOnly, status: 'Presente', notes: 'Sistema biométrico' });
                  }
              }
         }
     });
 };
 
-// Run initialization
 initData();
-
 
 // --- HELPER: Resolve Permissions ---
 export const resolveUserPermissions = async (roleName: string): Promise<PermissionMatrix> => {
@@ -160,22 +162,17 @@ export const resolveUserPermissions = async (roleName: string): Promise<Permissi
 };
 
 // --- USERS CRUD ---
-
-export const getUsers = async (): Promise<User[]> => {
-  return new Promise(resolve => setTimeout(() => resolve([...MOCK_USERS]), 300));
-};
+export const getUsers = async (): Promise<User[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_USERS]), 300));
 
 export const saveUser = async (user: User): Promise<User> => {
   return new Promise(resolve => setTimeout(() => {
     const userToSave = { ...user };
-    
     const existing = MOCK_USERS.find(u => u.id === user.id);
     if (user.password && user.password !== existing?.password) {
         userToSave.password = mockEncrypt(user.password);
     } else if (!user.password && existing) {
         userToSave.password = existing.password;
     }
-
     if (existing) {
       MOCK_USERS = MOCK_USERS.map(u => u.id === user.id ? userToSave : u);
     } else {
@@ -193,10 +190,7 @@ export const deleteUser = async (id: string): Promise<void> => {
 };
 
 // --- ROLES CRUD ---
-
-export const getRoles = async (): Promise<RoleDef[]> => {
-  return new Promise(resolve => setTimeout(() => resolve([...MOCK_ROLES]), 300));
-};
+export const getRoles = async (): Promise<RoleDef[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_ROLES]), 300));
 
 export const saveRole = async (role: RoleDef): Promise<RoleDef> => {
   return new Promise(resolve => setTimeout(() => {
@@ -218,10 +212,7 @@ export const deleteRole = async (id: string): Promise<void> => {
 };
 
 // --- PERMISSIONS CRUD ---
-
-export const getPermissions = async (): Promise<Permission[]> => {
-  return new Promise(resolve => setTimeout(() => resolve([...MOCK_PERMISSIONS]), 300));
-};
+export const getPermissions = async (): Promise<Permission[]> => new Promise(resolve => setTimeout(() => resolve([...MOCK_PERMISSIONS]), 300));
 
 export const savePermission = async (perm: Permission): Promise<Permission> => {
   return new Promise(resolve => setTimeout(() => {
@@ -242,8 +233,31 @@ export const deletePermission = async (id: string): Promise<void> => {
   }, 300));
 };
 
-// --- ATTENDANCE ---
+// --- ACTIVITIES CRUD ---
+export const getActivities = async (): Promise<Activity[]> => {
+    return new Promise(resolve => setTimeout(() => resolve([...MOCK_ACTIVITIES]), 300));
+};
 
+export const saveActivity = async (activity: Activity): Promise<Activity> => {
+    return new Promise(resolve => setTimeout(() => {
+        const exists = MOCK_ACTIVITIES.find(a => a.id === activity.id);
+        if (exists) {
+            MOCK_ACTIVITIES = MOCK_ACTIVITIES.map(a => a.id === activity.id ? activity : a);
+        } else {
+            MOCK_ACTIVITIES.push({ ...activity, id: Math.random().toString(36).substr(2, 9) });
+        }
+        resolve(activity);
+    }, 300));
+};
+
+export const deleteActivity = async (id: string): Promise<void> => {
+    return new Promise(resolve => setTimeout(() => {
+        MOCK_ACTIVITIES = MOCK_ACTIVITIES.filter(a => a.id !== id);
+        resolve();
+    }, 300));
+};
+
+// --- ATTENDANCE ---
 export const getAttendance = async (userId: string, month: string): Promise<AttendanceRecord[]> => {
   return new Promise(resolve => {
     setTimeout(() => {
@@ -253,24 +267,19 @@ export const getAttendance = async (userId: string, month: string): Promise<Atte
   });
 };
 
-// Search by range
 export const getAttendanceByRange = async (userId: string, startDate: string, endDate: string): Promise<AttendanceRecord[]> => {
     return new Promise(resolve => {
       setTimeout(() => {
-        const records = attendanceDB.filter(r => {
-            return r.userId === userId && r.date >= startDate && r.date <= endDate;
-        });
+        const records = attendanceDB.filter(r => r.userId === userId && r.date >= startDate && r.date <= endDate);
         resolve(records);
       }, 500); 
     });
 };
 
-// Get Detailed Logs for a specific date and user
 export const getAttendanceLogs = async (userId: string, date: string): Promise<AttendanceLog[]> => {
     return new Promise(resolve => {
         setTimeout(() => {
             const logs = logsDB.filter(l => l.userId === userId && l.dateTime.startsWith(date));
-            // Sort by time
             logs.sort((a,b) => a.dateTime.localeCompare(b.dateTime));
             resolve(logs);
         }, 200);
@@ -280,7 +289,6 @@ export const getAttendanceLogs = async (userId: string, date: string): Promise<A
 export const saveAttendance = async (record: AttendanceRecord): Promise<void> => {
   return new Promise(resolve => {
     setTimeout(() => {
-      // Remove existing record for that user/date combo if exists
       attendanceDB = attendanceDB.filter(r => !(r.userId === record.userId && r.date === record.date));
       attendanceDB.push(record);
       resolve();
@@ -288,12 +296,10 @@ export const saveAttendance = async (record: AttendanceRecord): Promise<void> =>
   });
 };
 
-// Bulk upload
 export const bulkSaveAttendance = async (records: AttendanceRecord[]): Promise<void> => {
   return new Promise(resolve => {
     setTimeout(() => {
       records.forEach(newRecord => {
-        // Prevent duplicates for the same day/user (Last write wins or keep existing 'Presente')
         const existsIndex = attendanceDB.findIndex(r => r.userId === newRecord.userId && r.date === newRecord.date);
         if (existsIndex === -1) {
             attendanceDB.push(newRecord);
