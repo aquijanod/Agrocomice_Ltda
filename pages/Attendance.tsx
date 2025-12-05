@@ -126,6 +126,16 @@ const Attendance: React.FC = () => {
   // Helper for Print View
   const getSelectedUserInfo = () => users.find(u => u.id === selectedUser);
 
+  // Helper date format dd-mm-yyyy
+  const formatDateForReport = (dateStr: string) => {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+  };
+
   // Generate PDF Handler
   const handlePrint = async () => {
     if (!reportRef.current) return;
@@ -134,43 +144,44 @@ const Attendance: React.FC = () => {
         setGeneratingPdf(true);
         
         // Wait a bit to ensure rendering
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Get elements
         const headerPart = document.getElementById('report-part-1');
         const tablePart = document.getElementById('report-part-2');
 
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pageWidth = 210;
-        const pageHeight = 297;
+        const pdf = new jsPDF('p', 'mm', 'letter'); // Tamaño Carta
+        const pageWidth = 216; // Letter width in mm approx
+        const pageHeight = 279; // Letter height in mm approx
+        const margin = 15; // 15mm margin
+        const printWidth = pageWidth - (margin * 2);
         
         // Render Header & Info (Part 1)
-        let currentY = 0;
+        let currentY = margin;
         if (headerPart) {
             const canvas1 = await html2canvas(headerPart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-            // Full width image
-            const imgH1 = (canvas1.height * pageWidth) / canvas1.width;
+            // Scale to print width
+            const imgH1 = (canvas1.height * printWidth) / canvas1.width;
             
-            pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, imgH1);
-            currentY = imgH1; 
+            pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', margin, currentY, printWidth, imgH1);
+            // Height is now accurate due to padding fix in template
+            currentY += imgH1; 
         }
 
         // Render Table (Part 2)
         if (tablePart && selectedDay) {
             const canvas2 = await html2canvas(tablePart, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-            // Align widths by using full page width (padding handled by CSS)
-            const imgH2 = (canvas2.height * pageWidth) / canvas2.width;
+            const imgH2 = (canvas2.height * printWidth) / canvas2.width;
             
             // Check if it fits on the current page
-            const spaceLeft = pageHeight - currentY;
+            const spaceLeft = pageHeight - margin - currentY;
             
             if (imgH2 > spaceLeft) {
-                // Not enough space? Add new page and reset Y
                 pdf.addPage();
-                currentY = 0;
+                currentY = margin;
             }
             
-            pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', 0, currentY, pageWidth, imgH2);
+            pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', margin, currentY, printWidth, imgH2);
         }
 
         const userName = getSelectedUserInfo()?.name.replace(/\s+/g, '_') || 'Reporte';
@@ -406,46 +417,44 @@ const Attendance: React.FC = () => {
       {/* --- HIDDEN PDF REPORT TEMPLATE --- */}
       {/* 
          This div is rendered off-screen but is used by html2canvas to generate the PDF image.
-         We set a fixed width of 800px which maps well to A4 PDF generation.
+         We set a fixed width of 800px which maps well to Letter PDF generation quality.
       */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <div ref={reportRef} className="w-[800px] bg-white text-slate-900">
+          <div ref={reportRef} className="w-[800px] bg-white text-slate-900 font-sans">
             
-            {/* PART 1: HEADER & INFO */}
-            <div id="report-part-1">
-                {/* Corporate Header */}
-                <div className="bg-blue-950 text-white p-8 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+            {/* PART 1: HEADER & INFO - CORPORATE STYLE */}
+            <div id="report-part-1" className="p-12">
+                {/* Corporate Letterhead */}
+                <div className="flex items-end justify-between border-b-2 border-slate-900 pb-6 mb-8">
+                    <div className="flex items-center gap-3">
+                        {/* Icon Removed */}
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight">Agro Comice Ltda</h1>
-                            <p className="text-blue-200 text-sm mt-1 uppercase tracking-wider font-medium">Gestión de Personal</p>
+                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">Agro Comice Ltda</h1>
+                            <p className="text-slate-500 text-xs tracking-widest uppercase">Sistema Integrado de Gestión</p>
                         </div>
                     </div>
                     <div className="text-right">
-                         <div className="bg-blue-900/50 px-4 py-2 rounded-lg border border-blue-800">
-                            <p className="text-[10px] text-blue-300 uppercase tracking-wider font-bold mb-0.5">Reporte Generado</p>
-                            <p className="font-mono font-bold text-lg">{new Date().toLocaleDateString('es-ES')}</p>
-                         </div>
+                         <p className="text-xs text-slate-500 uppercase font-bold mb-1">Fecha Emisión</p>
+                         <p className="text-base font-bold text-slate-800">{new Date().toLocaleDateString('es-ES', {year: 'numeric', month: 'long', day: 'numeric'})}</p>
                     </div>
                 </div>
 
-                <div className="p-10">
-                    <div className="flex items-center gap-2 mb-6 border-b border-slate-200 pb-4">
-                        <h2 className="text-xl font-bold text-slate-800">Reporte de Asistencia</h2>
-                    </div>
+                <div className="mb-8">
+                    <h2 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-tight">Reporte de Asistencia de Personal</h2>
 
                     {/* User Info & Filter Context */}
                     {selectedUser && (
-                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-lg mb-8 grid grid-cols-2 gap-8 shadow-sm">
+                        /* Removed border and background styling */
+                        <div className="grid grid-cols-2 gap-8 mt-6">
                             <div>
-                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-2 tracking-wide">Trabajador</h3>
-                                <p className="text-2xl font-bold text-slate-900">{getSelectedUserInfo()?.name}</p>
-                                <p className="text-base text-slate-600 mt-1">{getSelectedUserInfo()?.role}</p>
+                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-1 tracking-wide">Trabajador</h3>
+                                <p className="text-lg font-bold text-slate-900">{getSelectedUserInfo()?.name}</p>
+                                <p className="text-sm text-slate-600">{getSelectedUserInfo()?.role}</p>
                             </div>
                             <div>
-                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-2 tracking-wide">Periodo Visualizado</h3>
-                                <p className="text-2xl font-bold text-slate-900 capitalize">{currentCalendarDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</p>
-                                <p className="text-base text-slate-600 mt-1">Rango: {startDate} al {endDate}</p>
+                                <h3 className="text-xs font-bold uppercase text-slate-500 mb-1 tracking-wide">Periodo del Reporte</h3>
+                                <p className="text-lg font-bold text-slate-900 capitalize">{currentCalendarDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</p>
+                                <p className="text-sm text-slate-600">Rango: {formatDateForReport(startDate)} al {formatDateForReport(endDate)}</p>
                             </div>
                         </div>
                     )}
@@ -454,46 +463,45 @@ const Attendance: React.FC = () => {
 
             {/* PART 2: DETAIL TABLE */}
             {selectedDay && logs.length > 0 && (
-                <div id="report-part-2" className="p-10 pt-0">
-                     <h3 className="font-bold text-xl mb-6 text-slate-800 border-l-4 border-blue-600 pl-4">
+                <div id="report-part-2" className="p-12 pt-0">
+                     {/* Title modified: No blue line, clean text */}
+                     <h3 className="font-bold text-lg mb-4 text-slate-800 border-b border-slate-200 pb-2">
                          Detalle del Día: {selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
                      </h3>
-                     <table className="w-full text-left border border-slate-300 rounded-sm">
+
+                     <table className="w-full text-left border border-slate-200">
                          <thead>
-                             <tr className="bg-slate-100 border-b border-slate-300">
-                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Nombre</th>
-                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Departamento</th>
-                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Fecha y Hora</th>
-                                 <th className="p-4 text-sm font-bold text-slate-700 uppercase">Dispositivo</th>
+                             <tr className="bg-slate-100 border-b border-slate-200">
+                                 <th className="p-3 text-sm font-bold text-slate-700 uppercase">Nombre</th>
+                                 <th className="p-3 text-sm font-bold text-slate-700 uppercase">Departamento</th>
+                                 <th className="p-3 text-sm font-bold text-slate-700 uppercase">Fecha y Hora</th>
+                                 <th className="p-3 text-sm font-bold text-slate-700 uppercase">Dispositivo</th>
                              </tr>
                          </thead>
                          <tbody>
                              {logs.map((log, i) => (
-                                 <tr key={i} className="border-b border-slate-200">
-                                     <td className="p-4 text-sm font-bold text-slate-800">{log.userName}</td>
-                                     <td className="p-4 text-sm text-slate-700">{log.department}</td>
-                                     <td className="p-4 text-sm font-mono text-slate-700">{log.dateTime}</td>
-                                     <td className="p-4 text-sm text-slate-700">{log.deviceId}</td>
+                                 <tr key={i} className="border-b border-slate-100">
+                                     <td className="p-3 text-sm font-medium text-slate-800">{log.userName}</td>
+                                     <td className="p-3 text-sm text-slate-600">{log.department}</td>
+                                     <td className="p-3 text-sm font-mono text-slate-600">{log.dateTime}</td>
+                                     <td className="p-3 text-sm text-slate-600">{log.deviceId}</td>
                                  </tr>
                              ))}
                          </tbody>
                      </table>
                      
-                    <div className="mt-8 pt-8 border-t border-slate-300 text-center text-xs text-slate-400">
-                        <p>Generado automáticamente por Sistema Agro Comice Ltda.</p>
-                        <p className="mt-1">Documento de uso interno.</p>
+                    <div className="mt-8 pt-8 border-t border-slate-200 text-center text-xs text-slate-400">
+                        <p>Documento generado electrónicamente por Sistema Agro Comice Ltda.</p>
+                        <p className="mt-1">Uso Exclusivo Interno.</p>
                     </div>
                 </div>
             )}
             
-            {/* Fallback if no logs for footer in Part 1 if Part 2 is missing */}
+            {/* Fallback if no logs */}
             {(!selectedDay || logs.length === 0) && (
-                <div className="p-10 pt-0">
-                     <div className="p-6 bg-slate-50 border border-slate-200 rounded-lg text-center text-slate-500 text-sm italic mb-8">
+                <div className="p-12 pt-0">
+                     <div className="p-6 bg-slate-50 border border-slate-200 rounded-sm text-center text-slate-500 text-sm italic mb-8">
                         * No se ha seleccionado un día específico con registros para el detalle.
-                    </div>
-                    <div className="pt-8 border-t border-slate-300 text-center text-xs text-slate-400">
-                        <p>Generado automáticamente por Sistema Agro Comice Ltda.</p>
                     </div>
                 </div>
             )}

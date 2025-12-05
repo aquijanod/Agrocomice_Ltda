@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, ActivityStatus, User } from '../types';
 import { getActivities, saveActivity, deleteActivity, getUsers } from '../services/dataService';
-import { Plus, Edit2, Trash2, X, Save, Paperclip, FileText, Calendar, CheckCircle2, Clock, AlertCircle, Ban, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Calendar, CheckCircle2, Clock, AlertCircle, Ban, Eye, ChevronLeft, ChevronRight, Upload, ImageIcon, ZoomIn } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -15,6 +15,9 @@ const ActivitiesPage: React.FC = () => {
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Image Preview State
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Modals
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -58,6 +61,10 @@ const ActivitiesPage: React.FC = () => {
   const getActivitiesForDay = (day: number) => {
       const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
       return activities.filter(act => {
+          // Filtro de Seguridad: Trabajador solo ve sus asignaciones
+          if (currentUser?.role === 'Trabajador' && act.assigneeId !== currentUser.id) {
+              return false;
+          }
           return dateStr >= act.startDate && dateStr <= act.endDate;
       });
   };
@@ -77,6 +84,12 @@ const ActivitiesPage: React.FC = () => {
               return y === targetYear && m === targetMonth;
           });
       }
+
+      // Filtro de Seguridad: Trabajador solo ve sus asignaciones
+      if (currentUser?.role === 'Trabajador') {
+          filtered = filtered.filter(act => act.assigneeId === currentUser.id);
+      }
+
       return filtered.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
   };
 
@@ -365,7 +378,7 @@ const ActivitiesPage: React.FC = () => {
                                                       </div>
                                                       {act.attachments.length > 0 && (
                                                           <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                                              <Paperclip size={12} /> {act.attachments.length}
+                                                              <ImageIcon size={12} /> {act.attachments.length}
                                                           </div>
                                                       )}
                                                   </div>
@@ -417,6 +430,27 @@ const ActivitiesPage: React.FC = () => {
         message={alertState.message}
         type={alertState.type}
       />
+
+       {/* Image Preview Modal (Lightbox) */}
+       {previewImage && (
+          <div 
+            className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+            onClick={() => setPreviewImage(null)}
+          >
+              <button 
+                onClick={() => setPreviewImage(null)}
+                className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+              >
+                  <X size={32} />
+              </button>
+              <img 
+                src={previewImage} 
+                alt="Vista Previa" 
+                className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl"
+                onClick={(e) => e.stopPropagation()} 
+              />
+          </div>
+      )}
 
       {isModalOpen && (
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
@@ -504,40 +538,51 @@ const ActivitiesPage: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-2">Evidencia y Documentos</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">Evidencia Fotográfica</label>
                           {!isViewMode && (
                             <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
                                 <input 
-                                    type="file" multiple 
+                                    type="file" multiple accept="image/*"
                                     id="file-upload" 
                                     className="hidden" 
                                     onChange={handleFileUpload}
                                 />
                                 <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                                    <Paperclip className="text-slate-400" size={24} />
-                                    <span className="text-blue-600 font-medium">Adjuntar archivos</span>
-                                    <span className="text-xs text-slate-400">PDF, JPG, PNG (Max 5MB)</span>
+                                    <Upload className="text-slate-400" size={24} />
+                                    <span className="text-blue-600 font-medium">Adjuntar Fotos</span>
+                                    <span className="text-xs text-slate-400">JPG, PNG (Max 5MB)</span>
                                 </label>
                             </div>
                           )}
                           {editingActivity.attachments && editingActivity.attachments.length > 0 ? (
-                              <div className="mt-4 space-y-2">
+                              <div className="mt-4 grid grid-cols-3 gap-2">
                                   {editingActivity.attachments.map((file, idx) => (
-                                      <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200 text-sm">
-                                          <div className="flex items-center gap-2 truncate">
-                                              <FileText size={16} className="text-slate-500" />
-                                              <span className="truncate max-w-[300px]">{file.name}</span>
-                                          </div>
+                                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group">
+                                          <img 
+                                            src={file.url} 
+                                            alt={file.name} 
+                                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-500"
+                                            onClick={() => setPreviewImage(file.url)}
+                                          />
+                                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                                                <ZoomIn className="text-white drop-shadow-md" size={24}/>
+                                           </div>
                                           {!isViewMode && (
-                                              <button type="button" onClick={() => removeAttachment(idx)} className="text-red-500 hover:text-red-700">
-                                                  <X size={16} />
+                                              <button 
+                                                type="button" 
+                                                onClick={() => removeAttachment(idx)} 
+                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                              >
+                                                  <X size={12} />
                                               </button>
                                           )}
                                       </div>
                                   ))}
                               </div>
                           ) : isViewMode && (
-                              <div className="text-slate-400 text-sm italic p-2">Sin adjuntos</div>
+                              <div className="text-slate-400 text-sm italic p-2 flex items-center gap-2">
+                                <ImageIcon size={16} /> Sin fotografías adjuntas
+                              </div>
                           )}
                       </div>
                   </form>

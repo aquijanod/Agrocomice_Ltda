@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getUsers, saveUser, deleteUser, getRoles } from '../services/dataService';
 import { User, RoleDef } from '../types';
-import { Edit2, Trash2, Plus, X, Save, Eye, Upload, Image as ImageIcon } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Save, Eye, Upload, Image as ImageIcon, Power } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -47,7 +47,7 @@ const UsersPage: React.FC = () => {
 
   const handleNew = () => {
     if (!canCreate) return;
-    setEditingUser({ name: '', email: '', role: 'Trabajador', avatar: '', password: '' });
+    setEditingUser({ name: '', email: '', role: 'Trabajador', avatar: '', password: '', active: true });
     setIsViewMode(false);
     setIsModalOpen(true);
   };
@@ -64,7 +64,7 @@ const UsersPage: React.FC = () => {
     setDeleteId(id);
   };
 
-  // 2. Execute Delete (Called by Modal)
+  // 2. Execute Delete (Called by Modal) - LOGIC DELETE
   const confirmDelete = async () => {
     if (!deleteId) return;
 
@@ -72,28 +72,19 @@ const UsersPage: React.FC = () => {
         await deleteUser(deleteId);
         setAlertState({
             isOpen: true, 
-            title: 'Usuario Eliminado', 
-            message: 'El usuario ha sido eliminado correctamente del sistema.', 
+            title: 'Usuario Desactivado', 
+            message: 'El usuario ha sido desactivado correctamente. No podrá ingresar al sistema hasta que sea reactivado.', 
             type: 'success'
         });
         loadData();
     } catch (error: any) {
         console.error("Error al eliminar:", error);
-        if (error?.code === '23503' || JSON.stringify(error).includes('violates foreign key constraint')) {
-            setAlertState({
-                isOpen: true,
-                title: 'No se pudo eliminar',
-                message: 'Este usuario tiene registros asociados (Asistencia, Actividades, etc.).\n\nDebe eliminar primero toda su actividad o desactivar la cuenta en lugar de borrarla.',
-                type: 'error'
-            });
-        } else {
-            setAlertState({
-                isOpen: true,
-                title: 'Error del Sistema',
-                message: 'Ocurrió un error inesperado al intentar eliminar el usuario.',
-                type: 'error'
-            });
-        }
+        setAlertState({
+            isOpen: true,
+            title: 'Error del Sistema',
+            message: 'Ocurrió un error inesperado al intentar desactivar el usuario.',
+            type: 'error'
+        });
     } finally {
         setDeleteId(null);
     }
@@ -160,12 +151,13 @@ const UsersPage: React.FC = () => {
               <th className="p-4 font-semibold text-slate-600">Usuario</th>
               <th className="p-4 font-semibold text-slate-600">Email</th>
               <th className="p-4 font-semibold text-slate-600">Rol</th>
+              <th className="p-4 font-semibold text-slate-600">Estado</th>
               <th className="p-4 font-semibold text-slate-600 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.map((user) => (
-              <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+              <tr key={user.id} className={`hover:bg-slate-50 transition-colors ${!user.active ? 'opacity-60 bg-slate-50/50' : ''}`}>
                 <td className="p-4 flex items-center gap-3">
                   <UserAvatar user={user} size="sm" />
                   <span className="font-medium text-slate-800">{user.name}</span>
@@ -179,6 +171,17 @@ const UsersPage: React.FC = () => {
                     {user.role}
                   </span>
                 </td>
+                <td className="p-4">
+                     {user.active ? (
+                         <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
+                             <span className="w-2 h-2 bg-green-500 rounded-full"></span> Activo
+                         </span>
+                     ) : (
+                         <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                             <span className="w-2 h-2 bg-slate-400 rounded-full"></span> Inactivo
+                         </span>
+                     )}
+                </td>
                 <td className="p-4 text-right space-x-2">
                   <button onClick={() => handleView(user)} className="p-2 hover:bg-emerald-50 rounded text-slate-500 hover:text-emerald-600 transition-colors">
                     <Eye size={18} />
@@ -188,11 +191,11 @@ const UsersPage: React.FC = () => {
                       <Edit2 size={18} />
                     </button>
                   )}
-                  {canDelete && (
+                  {canDelete && user.active && (
                     <button 
                         onClick={(e) => handleDeleteClick(user.id, e)} 
                         className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors"
-                        title="Eliminar Usuario"
+                        title="Desactivar Usuario"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -209,9 +212,10 @@ const UsersPage: React.FC = () => {
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={confirmDelete}
-        title="¿Eliminar Usuario?"
-        message="¿Está seguro que desea eliminar este usuario permanentemente? Esta acción no se puede deshacer."
-        confirmText="Sí, Eliminar"
+        title="¿Desactivar Usuario?"
+        message="¿Está seguro que desea desactivar este usuario? No podrá iniciar sesión en el sistema, pero sus registros históricos se mantendrán."
+        confirmText="Sí, Desactivar"
+        isDestructive={true}
       />
 
       <AlertModal
@@ -256,15 +260,33 @@ const UsersPage: React.FC = () => {
                      </div>
                  )}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-                <input 
-                  type="text" required disabled={isViewMode}
-                  value={editingUser.name || ''}
-                  onChange={e => setEditingUser({...editingUser, name: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                />
+              
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                    <input 
+                      type="text" required disabled={isViewMode}
+                      value={editingUser.name || ''}
+                      onChange={e => setEditingUser({...editingUser, name: e.target.value})}
+                      className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                    <div className="flex items-center gap-2 mt-2">
+                         <button 
+                             type="button"
+                             disabled={isViewMode}
+                             onClick={() => setEditingUser(prev => ({...prev, active: !prev.active}))}
+                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editingUser.active ? 'bg-green-500' : 'bg-slate-300'} ${isViewMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                         >
+                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editingUser.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                         </button>
+                         <span className="text-sm text-slate-600 font-medium">
+                             {editingUser.active ? 'Activo' : 'Inactivo'}
+                         </span>
+                    </div>
+                  </div>
               </div>
               
               <div>

@@ -7,6 +7,7 @@ export interface User {
   role: string; // This links to RoleDef.name or RoleDef.id
   avatar: string;
   password?: string; // Mock encrypted
+  active: boolean;
 }
 
 export type RoleDef = {

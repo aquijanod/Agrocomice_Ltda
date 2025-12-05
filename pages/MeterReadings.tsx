@@ -288,7 +288,7 @@ const MeterReadingsPage: React.FC = () => {
                                                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-500 shrink-0">
                                                                  {getUserName(reading.userId).charAt(0)}
                                                              </div>
-                                                             <span className="truncate text-xs text-slate-600 max-w-[60px]">{getUserName(reading.userId).split(' ')[0]}</span>
+                                                             <span className="truncate text-xs text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
                                                         </div>
                                                         
                                                         <div className="flex items-center gap-1">

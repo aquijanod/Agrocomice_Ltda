@@ -31,6 +31,7 @@ export const authenticate = async (email: string, passwordInput: string): Promis
         .select('*')
         .eq('email', email)
         .eq('password', encryptedPass)
+        .eq('active', true) // Solo usuarios activos pueden loguearse
         .single();
 
     if (error || !data) {
@@ -44,7 +45,8 @@ export const authenticate = async (email: string, passwordInput: string): Promis
         email: data.email,
         role: data.role,
         avatar: data.avatar,
-        password: data.password // Mantener para lógica interna si es necesario
+        password: data.password, // Mantener para lógica interna si es necesario
+        active: data.active
     };
 };
 
@@ -84,7 +86,8 @@ export const getUsers = async (): Promise<User[]> => {
         email: u.email,
         role: u.role,
         avatar: u.avatar,
-        password: u.password
+        password: u.password,
+        active: u.active ?? true // Default true si viene null
     }));
 };
 
@@ -94,7 +97,8 @@ export const saveUser = async (user: User): Promise<User> => {
         name: user.name,
         email: user.email,
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        active: user.active
     };
     
     // Only update password if provided (for edits) or required (for new)
@@ -125,7 +129,12 @@ export const saveUser = async (user: User): Promise<User> => {
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-    const { error } = await supabase.from('users').delete().eq('id', id);
+    // Eliminación Lógica: Update active = false
+    const { error } = await supabase
+        .from('users')
+        .update({ active: false })
+        .eq('id', id);
+        
     if (error) throw error;
 };
 
