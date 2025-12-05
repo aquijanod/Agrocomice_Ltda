@@ -2,7 +2,9 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://lucide.dev/icons/sprout.svg" />
+    <!-- Favicon de Pera 🍐 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='0' y='75' font-size='80'>🍐</text></svg>">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Agro Comice Ltda</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -33,13 +35,15 @@
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6"
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "path": "https://aistudiocdn.com/path@^0.12.7"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <!-- Ruta relativa para soportar estructura plana -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

@@ -19,7 +19,8 @@
     "jspdf": "2.5.1",
     "@supabase/supabase-js": "2.45.0",
     "@vitejs/plugin-react": "^5.1.1",
-    "vite": "^7.2.6"
+    "vite": "^7.2.6",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
