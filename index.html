@@ -2,10 +2,17 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <!-- Favicon de Pera 🍐 -->
+    <!-- Favicon de Pera 🍐 (Navegadores escritorio) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='0' y='75' font-size='80'>🍐</text></svg>">
+    
+    <!-- Configuración para iOS / Android (Add to Home Screen) -->
+    <meta name="apple-mobile-web-app-title" content="Agro Comice">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Icono PNG de alta resolución para iOS (Pera style Apple) -->
+    <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/391/pear_1f350.png">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Agro Comice Ltda</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -36,7 +43,8 @@
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "path": "https://aistudiocdn.com/path@^0.12.7"
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "url": "https://aistudiocdn.com/url@^0.11.4"
   }
 }
 </script>

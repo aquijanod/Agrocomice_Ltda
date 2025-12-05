@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MeterReading, User } from '../types';
 import { getMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
-import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn } from 'lucide-react';
+import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -15,6 +15,9 @@ const MeterReadingsPage: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingReading, setEditingReading] = useState<Partial<MeterReading>>({});
   
+  // Estado de carga de imagen
+  const [isCompressing, setIsCompressing] = useState(false);
+
   // Modal de Previsualización de Imagen
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -114,23 +117,81 @@ const MeterReadingsPage: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- FUNCIÓN DE COMPRESIÓN DE IMÁGENES ---
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 1200; // Reducir a un ancho razonable para pantallas
+                const MAX_HEIGHT = 1200;
+                let width = img.width;
+                let height = img.height;
+
+                // Calcular nuevas dimensiones manteniendo aspecto
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Convertir a JPEG con calidad 0.7 (reduce drásticamente el tamaño vs PNG/Raw)
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(dataUrl);
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (files && files.length > 0) {
-          Array.from(files).forEach((file: File) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                  setEditingReading(prev => ({
-                      ...prev,
-                      photos: [...(prev.photos || []), {
-                          name: file.name,
-                          type: file.type,
-                          url: reader.result as string
-                      }]
-                  }));
-              };
-              reader.readAsDataURL(file);
-          });
+          setIsCompressing(true);
+          try {
+              const processedPhotos = [];
+              for (let i = 0; i < files.length; i++) {
+                  const file = files[i];
+                  // Comprimir imagen antes de guardar
+                  const compressedDataUrl = await compressImage(file);
+                  processedPhotos.push({
+                      name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Forzar extensión jpg
+                      type: 'image/jpeg',
+                      url: compressedDataUrl
+                  });
+              }
+
+              setEditingReading(prev => ({
+                  ...prev,
+                  photos: [...(prev.photos || []), ...processedPhotos]
+              }));
+          } catch (error) {
+              console.error("Error procesando imagen", error);
+              setAlertState({
+                  isOpen: true, 
+                  title: 'Error de Imagen', 
+                  message: 'No se pudo procesar la imagen de la cámara. Intente nuevamente.', 
+                  type: 'error'
+              });
+          } finally {
+              setIsCompressing(false);
+          }
       }
   };
 
@@ -151,15 +212,6 @@ const MeterReadingsPage: React.FC = () => {
           case 'Gas': return <Flame size={16} className="text-orange-500" />;
           case 'Luz': return <Zap size={16} className="text-yellow-500" />;
           default: return <Gauge size={16} className="text-slate-500" />;
-      }
-  };
-
-  const getServiceColor = (type?: string) => {
-      switch(type) {
-          case 'Agua': return 'bg-blue-50 border-blue-200 text-blue-700';
-          case 'Gas': return 'bg-orange-50 border-orange-200 text-orange-700';
-          case 'Luz': return 'bg-yellow-50 border-yellow-200 text-yellow-700';
-          default: return 'bg-slate-50 border-slate-200 text-slate-700';
       }
   };
   
@@ -432,17 +484,26 @@ const MeterReadingsPage: React.FC = () => {
                       <div>
                           <label className="block text-sm font-bold text-slate-700 mb-2">Fotografías del Medidor</label>
                           {!isViewMode && (
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors mb-4">
+                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors mb-4 relative">
+                                {isCompressing && (
+                                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                        <div className="flex flex-col items-center">
+                                            <Loader2 className="animate-spin text-blue-600" size={32} />
+                                            <span className="text-xs text-blue-600 font-bold mt-2">Optimizando imagen...</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <input 
                                     type="file" multiple accept="image/*"
+                                    capture="environment" 
                                     id="file-upload" 
                                     className="hidden" 
                                     onChange={handleFileUpload}
                                 />
                                 <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
                                     <Upload className="text-slate-400" size={24} />
-                                    <span className="text-blue-600 font-medium">Subir Fotos</span>
-                                    <span className="text-xs text-slate-400">JPG, PNG (Max 5MB)</span>
+                                    <span className="text-blue-600 font-medium">Subir Foto o Tomar Cámara</span>
+                                    <span className="text-xs text-slate-400">Se optimizará automáticamente</span>
                                 </label>
                             </div>
                           )}
@@ -478,8 +539,8 @@ const MeterReadingsPage: React.FC = () => {
                           {isViewMode ? 'Cerrar' : 'Cancelar'}
                       </button>
                       {!isViewMode && (
-                        <button type="button" onClick={(e) => handleSave(e as any)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                            <Save size={18} /> Guardar
+                        <button type="button" onClick={(e) => handleSave(e as any)} disabled={isCompressing} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50">
+                            {isCompressing ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Guardar
                         </button>
                       )}
                   </div>
