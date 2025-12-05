@@ -50,9 +50,13 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // 1. Load CRM Data
     const loadData = async () => {
-        const [acts, usrs] = await Promise.all([getActivities(), getUsers()]);
-        setActivities(acts);
-        setUsers(usrs);
+        try {
+            const [acts, usrs] = await Promise.all([getActivities(), getUsers()]);
+            setActivities(acts);
+            setUsers(usrs);
+        } catch (error) {
+            console.error("Error loading CRM data:", error);
+        }
     };
     loadData();
 
@@ -125,7 +129,7 @@ const Dashboard: React.FC = () => {
                     condition: weatherInfo.label,
                     icon: weatherInfo.icon,
                     hourly: hourly,
-                    humidity: index === 0 ? data.current.relative_humidity_2m : 50, // Forecast API doesn't give daily humidity avg easily, using current or placeholder
+                    humidity: index === 0 ? data.current.relative_humidity_2m : 50, 
                     wind: index === 0 ? Math.round(data.current.wind_speed_10m) : maxWind,
                     rainProb: data.daily.precipitation_probability_max[index]
                 };
@@ -283,7 +287,7 @@ const Dashboard: React.FC = () => {
 
                         {/* Chart Container with fixed dimensions to prevent Recharts width(-1) error */}
                         <div className="w-full h-40 mt-4 min-w-0 relative">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="99.9%" height="100%">
                                 <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
