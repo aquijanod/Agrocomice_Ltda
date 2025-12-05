@@ -282,8 +282,8 @@ const Dashboard: React.FC = () => {
                         </div>
 
                         {/* Chart Container with fixed dimensions to prevent Recharts width(-1) error */}
-                        <div className="flex-1 w-full min-h-0 min-w-0 relative mt-2" style={{ minHeight: '150px' }}>
-                            <ResponsiveContainer width="99%" height="100%">
+                        <div className="w-full h-40 mt-4 min-w-0 relative">
+                            <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
