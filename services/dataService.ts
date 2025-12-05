@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { User, RoleDef, Permission, PermissionMatrix, AttendanceRecord, AttendanceLog, Activity, APP_ENTITIES } from '../types';
+import { User, RoleDef, Permission, PermissionMatrix, AttendanceRecord, AttendanceLog, Activity, APP_ENTITIES, MeterReading } from '../types';
 
 // --- CONFIGURACIÓN SUPABASE ---
 const supabaseUrl = 'https://zyfkpvlfthmbhehmofti.supabase.co';
@@ -248,15 +248,57 @@ export const deleteActivity = async (id: string): Promise<void> => {
     if (error) throw error;
 };
 
+// --- METER READINGS CRUD ---
+
+export const getMeterReadings = async (): Promise<MeterReading[]> => {
+    const { data, error } = await supabase
+        .from('meter_readings')
+        .select('*')
+        .order('date', { ascending: false });
+    
+    if (error) throw error;
+    return data.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        date: r.date,
+        location: r.location,
+        serviceType: r.service_type,
+        photos: r.photos || []
+    }));
+};
+
+export const saveMeterReading = async (reading: MeterReading): Promise<MeterReading> => {
+    const payload = {
+        user_id: reading.userId,
+        date: reading.date,
+        location: reading.location,
+        service_type: reading.serviceType,
+        photos: reading.photos
+    };
+
+    if (reading.id && reading.id.length > 10) {
+        const { error } = await supabase.from('meter_readings').update(payload).eq('id', reading.id);
+        if (error) throw error;
+    } else {
+        const { data, error } = await supabase.from('meter_readings').insert([payload]).select().single();
+        if (error) throw error;
+        reading.id = data.id;
+    }
+    return reading;
+};
+
+export const deleteMeterReading = async (id: string): Promise<void> => {
+    const { error } = await supabase.from('meter_readings').delete().eq('id', id);
+    if (error) throw error;
+};
+
 // --- ATTENDANCE ---
 
 // Synthesize AttendanceRecords (for Calendar) from Logs (Present) ONLY.
-// REMOVED: Dependency on 'absences' table.
 export const getAttendanceByRange = async (userId: string, startDate: string, endDate: string): Promise<AttendanceRecord[]> => {
     const records: AttendanceRecord[] = [];
 
     // 1. Fetch Logs (Presence)
-    // We get unique dates where the user has at least one log
     const { data: logs, error: logsError } = await supabase
         .from('attendance_logs')
         .select('date_time')
@@ -281,7 +323,6 @@ export const getAttendanceByRange = async (userId: string, startDate: string, en
         }
     });
 
-    // NOTE: 'Absences' table logic removed. Days without logs will be rendered as empty/white in calendar.
     return records;
 };
 
@@ -301,19 +342,18 @@ export const getAttendanceLogs = async (userId: string, date: string): Promise<A
         userId: l.user_id,
         userName: l.user_name_snapshot || 'Unknown',
         department: l.department,
-        dateTime: new Date(l.date_time).toLocaleString('es-CL'), // Convert UTC/ISO to locale for display
+        dateTime: new Date(l.date_time).toLocaleString('es-CL'),
         deviceId: l.device_id
     }));
 };
 
 // Batch Insert for Upload
 export const bulkSaveLogs = async (logs: any[]): Promise<void> => {
-    // Transform flat preview data into DB structure
     const dbLogs = logs.map(l => ({
         user_id: l.userId,
         user_name_snapshot: l.userName,
         department: l.department,
-        date_time: l.dateTime, // Ensure format YYYY-MM-DD HH:mm:ss
+        date_time: l.dateTime, 
         device_id: l.deviceId
     }));
 

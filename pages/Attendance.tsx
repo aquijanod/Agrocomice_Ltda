@@ -416,10 +416,6 @@ const Attendance: React.FC = () => {
                 {/* Corporate Header */}
                 <div className="bg-blue-950 text-white p-8 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        {/* Corrected Icon Alignment - Matches Login */}
-                        <div className="w-16 h-16 bg-white rounded-tl-2xl rounded-br-2xl flex items-center justify-center shadow-lg shrink-0">
-                            <span className="text-4xl">🍐</span>
-                        </div>
                         <div>
                             <h1 className="text-3xl font-bold tracking-tight">Agro Comice Ltda</h1>
                             <p className="text-blue-200 text-sm mt-1 uppercase tracking-wider font-medium">Gestión de Personal</p>

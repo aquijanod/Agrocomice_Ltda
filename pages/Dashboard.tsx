@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Users, CloudSun, Calendar as CalIcon, MapPin, Sun, Wind, Droplets, ChevronLeft, ChevronRight, Clock, Filter, X, Eye, TrendingUp, CloudRain, Cloud, CloudDrizzle, Umbrella } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, CloudSun, Calendar as CalIcon, MapPin, Sun, Wind, Droplets, ChevronLeft, ChevronRight, Clock, Filter, X, Eye, TrendingUp, CloudRain, Cloud, CloudDrizzle, Umbrella, Loader2 } from 'lucide-react';
 import { getActivities, getUsers } from '../services/dataService';
 import { Activity, User, ActivityStatus } from '../types';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, CartesianGrid } from 'recharts';
@@ -16,150 +17,18 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ElementType
   </div>
 );
 
-// --- REALISTIC WEATHER DATA GENERATOR ---
-// Generates a diurnal cycle curve (low in morning, high in afternoon)
-const generateRealisticHourly = (min: number, max: number, condition: string) => {
-    // Time points: Full 24h cycle in 3h intervals
-    const times = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
-    
-    // Temperature factors (0.0 = min, 1.0 = max)
-    // 06:00 is coldest (sunrise), 15:00 is hottest
-    const tempProfile = [0.25, 0.10, 0.0, 0.35, 0.75, 1.0, 0.85, 0.45];
-
-    return times.map((time, i) => {
-        const range = max - min;
-        let temp = Math.round(min + (range * tempProfile[i]));
-
-        // Add slight organic variation
-        temp += Math.floor(Math.random() * 2) - 0.5;
-
-        let precip = 0;
-        let wind = 10 + Math.floor(Math.random() * 8); // Base wind 10-18 km/h
-
-        if (condition.includes('Lluvia')) {
-            precip = 40 + Math.floor(Math.random() * 50);
-            wind += 8;
-        } else if (condition.includes('Nublado')) {
-             precip = Math.floor(Math.random() * 20);
-        }
-
-        return {
-            time,
-            temp: Math.round(temp),
-            precip,
-            wind
-        };
-    });
+// Helper para mapear códigos WMO de Open-Meteo a Iconos/Textos
+const getWeatherInfo = (code: number) => {
+    if (code === 0) return { label: 'Despejado', icon: Sun };
+    if (code === 1 || code === 2 || code === 3) return { label: 'Parcialmente Nublado', icon: CloudSun };
+    if (code >= 45 && code <= 48) return { label: 'Niebla', icon: Cloud };
+    if (code >= 51 && code <= 55) return { label: 'Llovizna', icon: CloudDrizzle };
+    if (code >= 61 && code <= 67) return { label: 'Lluvia', icon: CloudRain };
+    if (code >= 71 && code <= 77) return { label: 'Nieve', icon: CloudRain }; 
+    if (code >= 80 && code <= 82) return { label: 'Chubascos', icon: CloudRain };
+    if (code >= 95) return { label: 'Tormenta', icon: CloudRain };
+    return { label: 'Nublado', icon: Cloud };
 };
-
-// 7 Days of detailed data matching Colbun reference
-const weatherData = [
-    { 
-        id: 0, 
-        day: 'Hoy', 
-        fullDay: 'miércoles', 
-        date: 'Actual', 
-        max: 32, 
-        min: 13, 
-        current: 31, 
-        condition: 'Soleado', 
-        icon: Sun, 
-        hourly: generateRealisticHourly(13, 32, 'Soleado'), 
-        humidity: 26, 
-        wind: 14, 
-        rainProb: 0 
-    },
-    { 
-        id: 1, 
-        day: 'Jue', 
-        fullDay: 'jueves', 
-        date: 'Pronóstico', 
-        max: 32, 
-        min: 13, 
-        current: 28, 
-        condition: 'Parcialmente Nublado', 
-        icon: CloudSun, 
-        hourly: generateRealisticHourly(13, 32, 'Parcial'), 
-        humidity: 30, 
-        wind: 12, 
-        rainProb: 0 
-    },
-    { 
-        id: 2, 
-        day: 'Vie', 
-        fullDay: 'viernes', 
-        date: 'Pronóstico', 
-        max: 30, 
-        min: 12, 
-        current: 27, 
-        condition: 'Soleado', 
-        icon: Sun, 
-        hourly: generateRealisticHourly(12, 30, 'Soleado'), 
-        humidity: 28, 
-        wind: 11, 
-        rainProb: 0 
-    },
-    { 
-        id: 3, 
-        day: 'Sáb', 
-        fullDay: 'sábado', 
-        date: 'Pronóstico', 
-        max: 29, 
-        min: 13, 
-        current: 25, 
-        condition: 'Nublado', 
-        icon: Cloud, 
-        hourly: generateRealisticHourly(13, 29, 'Nublado'), 
-        humidity: 45, 
-        wind: 15, 
-        rainProb: 10 
-    },
-    { 
-        id: 4, 
-        day: 'Dom', 
-        fullDay: 'domingo', 
-        date: 'Pronóstico', 
-        max: 24, 
-        min: 15, 
-        current: 20, 
-        condition: 'Lluvia', 
-        icon: CloudRain, 
-        hourly: generateRealisticHourly(15, 24, 'Lluvia'), 
-        humidity: 82, 
-        wind: 22, 
-        rainProb: 90 
-    },
-    { 
-        id: 5, 
-        day: 'Lun', 
-        fullDay: 'lunes', 
-        date: 'Pronóstico', 
-        max: 30, 
-        min: 14, 
-        current: 26, 
-        condition: 'Parcialmente Nublado', 
-        icon: CloudSun, 
-        hourly: generateRealisticHourly(14, 30, 'Parcial'), 
-        humidity: 40, 
-        wind: 13, 
-        rainProb: 5 
-    },
-    { 
-        id: 6, 
-        day: 'Mar', 
-        fullDay: 'martes', 
-        date: 'Pronóstico', 
-        max: 30, 
-        min: 12, 
-        current: 28, 
-        condition: 'Soleado', 
-        icon: Sun, 
-        hourly: generateRealisticHourly(12, 30, 'Soleado'), 
-        humidity: 35, 
-        wind: 10, 
-        rainProb: 0 
-    },
-];
 
 type WeatherMetric = 'temp' | 'precip' | 'wind';
 
@@ -180,19 +49,116 @@ const Dashboard: React.FC = () => {
   // --- WEATHER WIDGET STATE ---
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [activeMetric, setActiveMetric] = useState<WeatherMetric>('temp');
+  
+  // Estado para datos reales del clima
+  const [weatherData, setWeatherData] = useState<any[]>([]);
+  const [loadingWeather, setLoadingWeather] = useState(true);
 
-  const currentWeatherData = weatherData[selectedDayIndex];
+  // Coordenadas Colbún (según mapa)
+  const LAT = -35.6789825;
+  const LON = -71.4169345;
 
   useEffect(() => {
+    // 1. Load CRM Data
     const loadData = async () => {
         const [acts, usrs] = await Promise.all([getActivities(), getUsers()]);
-        // Sort by start date (Ascending: Earliest first)
         const sorted = acts.sort((a,b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
         setActivities(sorted);
         setUsers(usrs);
     };
     loadData();
+
+    // 2. Fetch Real Weather Data form Open-Meteo
+    const fetchWeather = async () => {
+        try {
+            setLoadingWeather(true);
+            const response = await fetch(
+                `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation&hourly=temperature_2m,precipitation_probability,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`
+            );
+            const data = await response.json();
+
+            // Transform API data to our UI structure
+            const mappedData = data.daily.time.map((dateStr: string, index: number) => {
+                const dateObj = new Date(dateStr + 'T00:00:00'); // Force local midnight
+                const dayName = index === 0 ? 'Hoy' : dateObj.toLocaleDateString('es-ES', { weekday: 'short' });
+                const fullDay = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
+                const weatherInfo = getWeatherInfo(data.daily.weather_code[index]);
+                
+                // Logic for Hourly Data Graph
+                let hourlyIndices: number[] = [];
+                
+                if (index === 0) {
+                    // Para HOY: Rolling Window de 24 horas desde la hora actual
+                    const currentHour = new Date().getHours();
+                    // Open-Meteo hourly data starts at 00:00 of the requested period.
+                    // The flat array index roughly corresponds to hours since start.
+                    // We take 8 points spaced by 3 hours (24h total coverage)
+                    for (let i = 0; i < 8; i++) {
+                        hourlyIndices.push(currentHour + (i * 3));
+                    }
+                } else {
+                    // Para días FUTUROS: Mostrar el día completo (00:00 a 21:00)
+                    const startDayIdx = index * 24;
+                    const fixedHours = [0, 3, 6, 9, 12, 15, 18, 21];
+                    hourlyIndices = fixedHours.map(h => startDayIdx + h);
+                }
+                
+                const hourly = hourlyIndices.map(globalIdx => {
+                    // Safety check for array bounds
+                    if (globalIdx >= data.hourly.time.length) return null;
+
+                    // Parse ISO time string from API to get nice label
+                    const timeStr = data.hourly.time[globalIdx];
+                    const timeObj = new Date(timeStr);
+                    const label = timeObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+                    return {
+                        time: label,
+                        temp: Math.round(data.hourly.temperature_2m[globalIdx]),
+                        precip: data.hourly.precipitation_probability[globalIdx],
+                        wind: Math.round(data.hourly.wind_speed_10m[globalIdx])
+                    };
+                }).filter(Boolean); // Filter out nulls if we went out of bounds
+
+                // Calculate daily stats based on the FULL day data (not just the graph window)
+                const dayStartIdx = index * 24;
+                const dayEndIdx = dayStartIdx + 24;
+                const dailyWindSlice = data.hourly.wind_speed_10m.slice(dayStartIdx, dayEndIdx);
+                const maxWind = dailyWindSlice.length ? Math.round(Math.max(...dailyWindSlice)) : 0;
+
+                return {
+                    id: index,
+                    day: dayName.charAt(0).toUpperCase() + dayName.slice(1),
+                    fullDay: fullDay,
+                    date: index === 0 ? 'Actual' : 'Pronóstico',
+                    max: Math.round(data.daily.temperature_2m_max[index]),
+                    min: Math.round(data.daily.temperature_2m_min[index]),
+                    current: index === 0 ? Math.round(data.current.temperature_2m) : Math.round(data.daily.temperature_2m_max[index]),
+                    condition: weatherInfo.label,
+                    icon: weatherInfo.icon,
+                    hourly: hourly,
+                    humidity: index === 0 ? data.current.relative_humidity_2m : 50, // Forecast API doesn't give daily humidity avg easily, using current or placeholder
+                    wind: index === 0 ? Math.round(data.current.wind_speed_10m) : maxWind,
+                    rainProb: data.daily.precipitation_probability_max[index]
+                };
+            });
+
+            setWeatherData(mappedData);
+        } catch (error) {
+            console.error("Error fetching weather:", error);
+            // Fallback en caso de error de red
+        } finally {
+            setLoadingWeather(false);
+        }
+    };
+
+    fetchWeather();
   }, []);
+
+  const currentWeatherData = weatherData[selectedDayIndex] || {
+      // Placeholder while loading
+      current: 0, condition: 'Cargando...', fullDay: '...', rainProb: 0, humidity: 0, wind: 0, hourly: [], icon: Sun
+  };
 
   // Filtered Counts (Static KPIs)
   const workerCount = users.filter(u => u.role === 'Trabajador').length;
@@ -210,7 +176,6 @@ const Dashboard: React.FC = () => {
 
   const handleDayClick = (day: number) => {
       const newDate = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day);
-      // Toggle selection
       if (selectedDate && newDate.getTime() === selectedDate.getTime()) {
           setSelectedDate(null);
       } else {
@@ -218,10 +183,8 @@ const Dashboard: React.FC = () => {
       }
   };
 
-  // Helper to get user name
   const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Sin asignar';
 
-  // Helper para formatear fecha a DD-MM-YYYY
   const formatDate = (dateStr: string | undefined) => {
       if (!dateStr) return '';
       const parts = dateStr.split('-');
@@ -231,73 +194,42 @@ const Dashboard: React.FC = () => {
       return dateStr;
   };
 
-  // Logic to get activities that match filters AND a specific day
   const getActivitiesForDay = (day: number) => {
       const dateStr = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day).toISOString().split('T')[0];
-      
       return activities.filter(act => {
-          // 1. Date Check
           const inRange = dateStr >= act.startDate && dateStr <= act.endDate;
-          // 2. Status Check (Global Filter)
           const statusMatch = statusFilter === 'Todos' || act.status === statusFilter;
-          
           return inRange && statusMatch;
       });
   };
 
-  // Logic for the Main List Display
   const getFilteredList = () => {
       let filtered = activities;
-
-      // 1. Filter by Status
       if (statusFilter !== 'Todos') {
           filtered = filtered.filter(a => a.status === statusFilter);
       }
-
-      // 2. Filter by Selected Date (if any)
       if (selectedDate) {
           const dateStr = selectedDate.toISOString().split('T')[0];
           filtered = filtered.filter(a => dateStr >= a.startDate && dateStr <= a.endDate);
       }
-
       return filtered;
   };
 
   const displayList = getFilteredList();
 
-  // --- CHART CONFIGURATION ---
   const getChartConfig = () => {
       switch(activeMetric) {
           case 'precip':
-              return { 
-                  dataKey: 'precip', 
-                  color: '#3b82f6', // Blue
-                  fillId: 'colorPrecip',
-                  unit: '%',
-                  domain: [0, 100]
-              };
+              return { dataKey: 'precip', color: '#3b82f6', fillId: 'colorPrecip', unit: '%', domain: [0, 100] };
           case 'wind':
-              return { 
-                  dataKey: 'wind', 
-                  color: '#10b981', // Emerald
-                  fillId: 'colorWind',
-                  unit: ' km/h',
-                  domain: ['dataMin', 'dataMax + 10']
-              };
-          default: // temp
-              return { 
-                  dataKey: 'temp', 
-                  color: '#f59e0b', // Amber
-                  fillId: 'colorTemp',
-                  unit: '°',
-                  domain: ['dataMin - 5', 'dataMax + 5']
-              };
+              return { dataKey: 'wind', color: '#10b981', fillId: 'colorWind', unit: ' km/h', domain: ['dataMin', 'dataMax + 10'] };
+          default: 
+              return { dataKey: 'temp', color: '#f59e0b', fillId: 'colorTemp', unit: '°', domain: ['dataMin - 5', 'dataMax + 5'] };
       }
   };
 
   const chartConfig = getChartConfig();
 
-  // Custom Tick for Chart
   const CustomTick = (props: any) => {
       const { x, y, payload } = props;
       return (
@@ -309,7 +241,6 @@ const Dashboard: React.FC = () => {
       );
   };
   
-  // Custom Label for Chart Points
   const CustomLabel = (props: any) => {
       const { x, y, value } = props;
       return (
@@ -326,20 +257,16 @@ const Dashboard: React.FC = () => {
         <p className="text-slate-500">Resumen de operaciones - Agro Comice Ltda</p>
       </div>
 
-      {/* KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Trabajadores Activos" value={workerCount.toString()} icon={Users} color="bg-blue-500" />
         <StatCard title="Actividades Pendientes" value={pendingCount.toString()} icon={Clock} color="bg-orange-500" />
         <StatCard title="Actividades en Progreso" value={inProgressCount.toString()} icon={TrendingUp} color="bg-indigo-500" />
       </div>
 
-      {/* Separator 1: Between KPIs and Map/Weather */}
       <hr className="border-slate-200" />
 
-      {/* TOP SECTION: Map & Weather */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Satellite Map */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden h-[450px] relative group">
                 <iframe 
                     width="100%" 
@@ -356,156 +283,151 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Weather Widget - Interactive */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-[450px] flex flex-col font-sans transition-all">
                 
-                {/* Header Section (Dynamic) */}
-                <div className="flex justify-between items-start mb-6 animate-fade-in">
-                    <div className="flex gap-4">
-                         {/* Dynamic Icon */}
-                        <currentWeatherData.icon size={64} className={`
-                            ${currentWeatherData.condition.includes('Soleado') || currentWeatherData.condition.includes('Despejado') ? 'text-amber-400 fill-amber-400' : ''}
-                            ${currentWeatherData.condition.includes('Nublado') || currentWeatherData.condition.includes('Lluvia') || currentWeatherData.condition.includes('Parcial') ? 'text-slate-400 fill-slate-200' : ''}
-                        `} />
-                        <div>
-                            <div className="flex items-baseline gap-2">
-                                <h2 className="text-6xl font-normal text-slate-800 tracking-tight">{currentWeatherData.current}</h2>
-                                <span className="text-xl text-slate-500">°C</span>
-                            </div>
-                            <div className="text-slate-500 text-sm mt-1">
-                                <span className="font-medium text-slate-700">{currentWeatherData.condition}</span>
-                                <span className="mx-2">•</span>
-                                <span className="capitalize">{currentWeatherData.fullDay}</span>
-                            </div>
-                            <p className="text-slate-400 text-xs mt-0.5">Colbún, Maule</p>
-                        </div>
+                {loadingWeather ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                        <Loader2 size={48} className="animate-spin mb-4 text-blue-500"/>
+                        <p>Obteniendo datos meteorológicos en tiempo real...</p>
                     </div>
-                    
-                    {/* Stats (Dynamic) */}
-                    <div className="text-sm text-slate-600 space-y-1 text-right">
-                        <p>Precipitaciones: <span className="font-medium text-slate-800">{currentWeatherData.rainProb}%</span></p>
-                        <p>Humedad: <span className="font-medium text-slate-800">{currentWeatherData.humidity}%</span></p>
-                        <p>Viento: <span className="font-medium text-slate-800">{currentWeatherData.wind} km/h</span></p>
-                    </div>
-                </div>
-
-                {/* Tabs (Interactive) */}
-                <div className="flex border-b border-slate-200 mb-4">
-                    <button 
-                        onClick={() => setActiveMetric('temp')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'temp' ? 'text-slate-800 border-amber-400' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
-                    >
-                        Temperatura
-                    </button>
-                    <button 
-                        onClick={() => setActiveMetric('precip')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'precip' ? 'text-slate-800 border-blue-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
-                    >
-                        Precipitaciones
-                    </button>
-                    <button 
-                        onClick={() => setActiveMetric('wind')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'wind' ? 'text-slate-800 border-emerald-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
-                    >
-                        Viento
-                    </button>
-                </div>
-
-                {/* Chart Section (Interactive) */}
-                <div className="flex-1 w-full min-h-0 relative -ml-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#fbbf24" stopOpacity={0.05}/>
-                                </linearGradient>
-                                <linearGradient id="colorPrecip" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
-                                </linearGradient>
-                                <linearGradient id="colorWind" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
-                                </linearGradient>
-                            </defs>
-                            <XAxis 
-                                dataKey="time" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={<CustomTick />}
-                                interval={0}
-                            />
-                            <YAxis hide domain={chartConfig.domain as any} />
-                            <Tooltip 
-                                formatter={(value: any) => [`${value}${chartConfig.unit}`, activeMetric === 'temp' ? 'Temp' : activeMetric === 'precip' ? 'Lluvia' : 'Viento']}
-                                cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }} 
-                                contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
-                            />
-                            <Area 
-                                type="monotone" 
-                                dataKey={chartConfig.dataKey} 
-                                stroke={chartConfig.color} 
-                                strokeWidth={2} 
-                                fillOpacity={1} 
-                                fill={`url(#${chartConfig.fillId})`} 
-                                animationDuration={500}
-                            >
-                                <LabelList content={<CustomLabel />} />
-                            </Area>
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Daily Forecast List (Interactive) */}
-                <div className="mt-4 pt-4 border-t border-slate-100">
-                    <div className="flex justify-between overflow-x-auto pb-2 scrollbar-hide gap-2">
-                        {weatherData.map((day, idx) => (
-                            <div 
-                                key={idx} 
-                                onClick={() => setSelectedDayIndex(idx)}
-                                className={`
-                                    flex flex-col items-center min-w-[55px] py-2 px-1 rounded-lg transition-all cursor-pointer border border-transparent
-                                    ${selectedDayIndex === idx ? 'bg-blue-50 border-blue-200 shadow-sm transform scale-105' : 'hover:bg-slate-50 text-slate-500'}
-                                `}
-                            >
-                                <span className={`text-sm font-medium mb-2 ${selectedDayIndex === idx ? 'text-blue-700' : 'text-slate-600'}`}>
-                                    {day.day}
-                                </span>
-                                <day.icon size={24} className={`mb-2 
-                                    ${day.icon === Sun ? 'text-amber-400 fill-amber-400' : 
-                                      day.icon === Cloud ? 'text-slate-400 fill-slate-200' : 
-                                      day.icon === CloudDrizzle || day.icon === CloudRain ? 'text-blue-400' :
-                                      'text-slate-500'}
+                ) : (
+                    <>
+                        <div className="flex justify-between items-start mb-6 animate-fade-in">
+                            <div className="flex gap-4">
+                                <currentWeatherData.icon size={64} className={`
+                                    ${currentWeatherData.condition.includes('Despejado') || currentWeatherData.condition.includes('Soleado') ? 'text-amber-400 fill-amber-400' : ''}
+                                    ${currentWeatherData.condition.includes('Nublado') || currentWeatherData.condition.includes('Parcial') ? 'text-slate-400 fill-slate-200' : ''}
+                                    ${currentWeatherData.condition.includes('Lluvia') || currentWeatherData.condition.includes('Llovizna') ? 'text-blue-500' : ''}
                                 `} />
-                                <div className="text-xs font-bold text-slate-700">
-                                    <span>{day.max}°</span>
-                                    <span className="text-slate-400 ml-1 font-normal">{day.min}°</span>
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <h2 className="text-6xl font-normal text-slate-800 tracking-tight">{currentWeatherData.current}</h2>
+                                        <span className="text-xl text-slate-500">°C</span>
+                                    </div>
+                                    <div className="text-slate-500 text-sm mt-1">
+                                        <span className="font-medium text-slate-700">{currentWeatherData.condition}</span>
+                                        <span className="mx-2">•</span>
+                                        <span className="capitalize">{currentWeatherData.fullDay}</span>
+                                    </div>
+                                    <p className="text-slate-400 text-xs mt-0.5">Colbún, Maule (En tiempo real)</p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
+                            
+                            <div className="text-sm text-slate-600 space-y-1 text-right">
+                                <p>Precipitaciones: <span className="font-medium text-slate-800">{currentWeatherData.rainProb}%</span></p>
+                                <p>Humedad: <span className="font-medium text-slate-800">{currentWeatherData.humidity}%</span></p>
+                                <p>Viento: <span className="font-medium text-slate-800">{currentWeatherData.wind} km/h</span></p>
+                            </div>
+                        </div>
 
+                        <div className="flex border-b border-slate-200 mb-4">
+                            <button 
+                                onClick={() => setActiveMetric('temp')}
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'temp' ? 'text-slate-800 border-amber-400' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+                            >
+                                Temperatura
+                            </button>
+                            <button 
+                                onClick={() => setActiveMetric('precip')}
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'precip' ? 'text-slate-800 border-blue-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+                            >
+                                Precipitaciones
+                            </button>
+                            <button 
+                                onClick={() => setActiveMetric('wind')}
+                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeMetric === 'wind' ? 'text-slate-800 border-emerald-500' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+                            >
+                                Viento
+                            </button>
+                        </div>
+
+                        <div className="flex-1 w-full min-h-0 relative -ml-4">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={currentWeatherData.hourly} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#fbbf24" stopOpacity={0.05}/>
+                                        </linearGradient>
+                                        <linearGradient id="colorPrecip" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                                        </linearGradient>
+                                        <linearGradient id="colorWind" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis 
+                                        dataKey="time" 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                        tick={<CustomTick />}
+                                        interval={0}
+                                    />
+                                    <YAxis hide domain={chartConfig.domain as any} />
+                                    <Tooltip 
+                                        formatter={(value: any) => [`${value}${chartConfig.unit}`, activeMetric === 'temp' ? 'Temp' : activeMetric === 'precip' ? 'Lluvia' : 'Viento']}
+                                        cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }} 
+                                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                                    />
+                                    <Area 
+                                        type="monotone" 
+                                        dataKey={chartConfig.dataKey} 
+                                        stroke={chartConfig.color} 
+                                        strokeWidth={2} 
+                                        fillOpacity={1} 
+                                        fill={`url(#${chartConfig.fillId})`} 
+                                        animationDuration={500}
+                                    >
+                                        <LabelList content={<CustomLabel />} />
+                                    </Area>
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                            <div className="flex justify-between overflow-x-auto pb-2 scrollbar-hide gap-2">
+                                {weatherData.map((day, idx) => (
+                                    <div 
+                                        key={idx} 
+                                        onClick={() => setSelectedDayIndex(idx)}
+                                        className={`
+                                            flex flex-col items-center min-w-[55px] py-2 px-1 rounded-lg transition-all cursor-pointer border border-transparent
+                                            ${selectedDayIndex === idx ? 'bg-blue-50 border-blue-200 shadow-sm transform scale-105' : 'hover:bg-slate-50 text-slate-500'}
+                                        `}
+                                    >
+                                        <span className={`text-sm font-medium mb-2 ${selectedDayIndex === idx ? 'text-blue-700' : 'text-slate-600'}`}>
+                                            {day.day}
+                                        </span>
+                                        <day.icon size={24} className={`mb-2 
+                                            ${day.icon === Sun ? 'text-amber-400 fill-amber-400' : 
+                                            day.icon === Cloud ? 'text-slate-400 fill-slate-200' : 
+                                            (day.icon === CloudDrizzle || day.icon === CloudRain) ? 'text-blue-500' :
+                                            'text-slate-500'}
+                                        `} />
+                                        <div className="text-xs font-bold text-slate-700">
+                                            <span>{day.max}°</span>
+                                            <span className="text-slate-400 ml-1 font-normal">{day.min}°</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
-
       </div>
 
-      {/* Separator 2: Between Map/Weather and Activities/Calendar */}
       <hr className="border-slate-200" />
 
-      {/* BOTTOM SECTION: Activities & Calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Activities List */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-slate-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                         <CalIcon size={20} className="text-blue-600"/> Agenda de Actividades
                     </h3>
-                    
                     <div className="flex items-center gap-2">
-                        {/* Status Filter Dropdown */}
                         <div className="relative">
                             <select 
                                 value={statusFilter}
@@ -520,8 +442,6 @@ const Dashboard: React.FC = () => {
                             </select>
                             <Filter size={14} className="absolute left-2.5 top-3 text-slate-400 pointer-events-none"/>
                         </div>
-
-                        {/* Date Filter Indicator / Clear Button */}
                         {selectedDate && (
                              <button 
                                 onClick={() => setSelectedDate(null)}
@@ -531,8 +451,7 @@ const Dashboard: React.FC = () => {
                                  <X size={14} />
                              </button>
                         )}
-
-                        <a href="#/activities" className="hidden sm:block text-sm font-medium text-blue-600 hover:underline ml-2">Ver Todo</a>
+                        <Link to="/activities" className="hidden sm:block text-sm font-medium text-blue-600 hover:underline ml-2">Ver Todo</Link>
                     </div>
                 </div>
                 
@@ -575,7 +494,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Visual Calendar */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                      <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-white rounded-md transition-shadow text-slate-500"><ChevronLeft size={18}/></button>
@@ -599,16 +517,12 @@ const Dashboard: React.FC = () => {
                             const day = i + 1;
                             const dayActivities = getActivitiesForDay(day);
                             const hasActivity = dayActivities.length > 0;
-                            
-                            // Check if this day is selected
                             const isSelected = selectedDate && 
                                                selectedDate.getDate() === day && 
                                                selectedDate.getMonth() === currentCalendarDate.getMonth() &&
                                                selectedDate.getFullYear() === currentCalendarDate.getFullYear();
 
-                            // Determine style based on filtered status
                             let bgClass = 'bg-white text-slate-500 hover:bg-slate-50 border border-transparent';
-                            
                             if (hasActivity) {
                                 if (dayActivities.some(a => a.status === 'En Progreso')) {
                                     bgClass = 'bg-orange-100 text-orange-700 font-bold border border-orange-200';
@@ -618,8 +532,6 @@ const Dashboard: React.FC = () => {
                                     bgClass = 'bg-green-100 text-green-700 font-bold border border-green-200';
                                 }
                             }
-
-                            // Selection styling overlay
                             const ringClass = isSelected ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : '';
 
                             return (
@@ -640,10 +552,8 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
-
       </div>
 
-      {/* Activity Detail Modal */}
       {viewActivity && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg animate-fade-in overflow-hidden">

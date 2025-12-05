@@ -3,14 +3,21 @@ import { getRoles, saveRole, deleteRole, getPermissions } from '../services/data
 import { RoleDef, Permission } from '../types';
 import { Shield, Plus, Edit2, Trash2, X, Save, Eye } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { ConfirmModal, AlertModal } from '../components/Modals';
 
 const RolesPage: React.FC = () => {
   const { permissions } = useAuth();
   const [roles, setRoles] = useState<RoleDef[]>([]);
-  const [permsData, setPermsData] = useState<Permission[]>([]); // renamed to avoid conflict
+  const [permsData, setPermsData] = useState<Permission[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingRole, setEditingRole] = useState<Partial<RoleDef>>({});
+
+  // Modals State
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<{isOpen: boolean, title: string, message: string, type: 'success'|'error'|'info'}>({
+      isOpen: false, title: '', message: '', type: 'info'
+  });
 
   const canCreate = permissions?.['Roles']?.create;
   const canEdit = permissions?.['Roles']?.edit;
@@ -46,20 +53,64 @@ const RolesPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!canDelete) return;
-    if (window.confirm('¿Eliminar este rol? Esto podría afectar a los usuarios asignados.')) {
-      await deleteRole(id);
+  // 1. Trigger
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canDelete) {
+        setAlertState({isOpen: true, title: 'Acceso Denegado', message: 'No tiene permisos para eliminar roles.', type: 'error'});
+        return;
+    }
+    setDeleteId(id);
+  };
+
+  // 2. Execute
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+      await deleteRole(deleteId);
+      setAlertState({
+          isOpen: true, 
+          title: 'Rol Eliminado', 
+          message: 'El rol ha sido eliminado correctamente.', 
+          type: 'success'
+      });
       loadData();
+    } catch (error: any) {
+      console.error("Error al eliminar rol:", error);
+      if (error?.code === '23503' || JSON.stringify(error).includes('violates foreign key constraint')) {
+          setAlertState({
+              isOpen: true,
+              title: 'No se pudo eliminar',
+              message: 'Existen usuarios asignados a este rol actualmente.\n\nPor favor, reasigne esos usuarios a otro rol antes de intentar eliminar este.',
+              type: 'error'
+          });
+      } else {
+          setAlertState({
+              isOpen: true,
+              title: 'Error',
+              message: 'Ocurrió un error inesperado al eliminar el rol.',
+              type: 'error'
+          });
+      }
+    } finally {
+        setDeleteId(null);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingRole.name && editingRole.permissionId) {
-      await saveRole(editingRole as RoleDef);
-      setIsModalOpen(false);
-      loadData();
+      try {
+        await saveRole(editingRole as RoleDef);
+        setIsModalOpen(false);
+        loadData();
+      } catch (error) {
+        console.error("Error saving role:", error);
+        setAlertState({isOpen: true, title: 'Error', message: 'No se pudo guardar el rol.', type: 'error'});
+      }
     }
   };
 
@@ -116,7 +167,11 @@ const RolesPage: React.FC = () => {
                               </button>
                             )}
                             {canDelete && (
-                              <button onClick={() => handleDelete(role.id)} className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors">
+                              <button 
+                                onClick={(e) => handleDeleteClick(role.id, e)} 
+                                className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors"
+                                title="Eliminar Rol"
+                              >
                                   <Trash2 size={18} />
                               </button>
                             )}
@@ -128,7 +183,23 @@ const RolesPage: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal */}
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="¿Eliminar Rol?"
+        message="¿Está seguro que desea eliminar este Rol? Esta acción no se puede deshacer."
+        confirmText="Eliminar Rol"
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+      />
+
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-fade-in">
@@ -145,34 +216,30 @@ const RolesPage: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
                 <input 
-                  type="text" 
-                  required
-                  disabled={isViewMode}
+                  type="text" required disabled={isViewMode}
                   value={editingRole.name || ''}
                   onChange={e => setEditingRole({...editingRole, name: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
                 <textarea 
-                  required
-                  disabled={isViewMode}
+                  required disabled={isViewMode}
                   value={editingRole.description || ''}
                   onChange={e => setEditingRole({...editingRole, description: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 disabled:bg-slate-100"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none h-24 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Asignar Permiso (Matriz)</label>
                 <select 
-                  required
-                  disabled={isViewMode}
+                  required disabled={isViewMode}
                   value={editingRole.permissionId || ''}
                   onChange={e => setEditingRole({...editingRole, permissionId: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 >
                     <option value="" disabled>Seleccione un perfil de permisos</option>
                     {permsData.map(p => (

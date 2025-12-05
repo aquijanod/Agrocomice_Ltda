@@ -13,7 +13,8 @@ import {
   Bell,
   Upload,
   Search,
-  ClipboardList
+  ClipboardList,
+  Gauge
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
@@ -47,6 +48,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       title: 'Operaciones',
       items: [
         { label: 'Actividades y Tareas', path: '/activities', icon: ClipboardList, entity: 'Actividades' },
+        { label: 'Estado Medidores', path: '/meter-readings', icon: Gauge, entity: 'Estado Medidores' },
         { label: 'Búsqueda Asistencia', path: '/attendance/search', icon: Search, entity: 'Asistencia' },
         { label: 'Carga Data Asistencia', path: '/attendance/upload', icon: Upload, entity: 'Asistencia' },
       ]

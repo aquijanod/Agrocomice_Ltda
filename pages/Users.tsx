@@ -3,6 +3,7 @@ import { getUsers, saveUser, deleteUser, getRoles } from '../services/dataServic
 import { User, RoleDef } from '../types';
 import { Edit2, Trash2, Plus, X, Save, Eye, Upload, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { ConfirmModal, AlertModal } from '../components/Modals';
 
 const UsersPage: React.FC = () => {
   const { permissions } = useAuth();
@@ -12,7 +13,12 @@ const UsersPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
   const [isViewMode, setIsViewMode] = useState(false);
 
-  // Check specific permissions for this entity
+  // States for Custom Modals
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<{isOpen: boolean, title: string, message: string, type: 'success'|'error'|'info'}>({
+      isOpen: false, title: '', message: '', type: 'info'
+  });
+
   const canCreate = permissions?.['Usuarios']?.create;
   const canEdit = permissions?.['Usuarios']?.edit;
   const canDelete = permissions?.['Usuarios']?.delete;
@@ -34,33 +40,75 @@ const UsersPage: React.FC = () => {
 
   const handleEdit = (user: User) => {
     if (!canEdit) return;
-    setEditingUser({ ...user, password: '' }); // Reset password field
+    setEditingUser({ ...user, password: '' });
     setIsViewMode(false);
     setIsModalOpen(true);
   };
 
   const handleNew = () => {
     if (!canCreate) return;
-    // Avatar vacío por defecto, no autogenerado
     setEditingUser({ name: '', email: '', role: 'Trabajador', avatar: '', password: '' });
     setIsViewMode(false);
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!canDelete) return;
-    if (window.confirm('¿Estás seguro de eliminar este usuario?')) {
-      await deleteUser(id);
-      loadData();
+  // 1. Trigger Delete (Opens Confirm Modal)
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canDelete) {
+        setAlertState({isOpen: true, title: 'Acceso Denegado', message: 'No tiene permisos para eliminar usuarios.', type: 'error'});
+        return;
+    }
+    setDeleteId(id);
+  };
+
+  // 2. Execute Delete (Called by Modal)
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+        await deleteUser(deleteId);
+        setAlertState({
+            isOpen: true, 
+            title: 'Usuario Eliminado', 
+            message: 'El usuario ha sido eliminado correctamente del sistema.', 
+            type: 'success'
+        });
+        loadData();
+    } catch (error: any) {
+        console.error("Error al eliminar:", error);
+        if (error?.code === '23503' || JSON.stringify(error).includes('violates foreign key constraint')) {
+            setAlertState({
+                isOpen: true,
+                title: 'No se pudo eliminar',
+                message: 'Este usuario tiene registros asociados (Asistencia, Actividades, etc.).\n\nDebe eliminar primero toda su actividad o desactivar la cuenta en lugar de borrarla.',
+                type: 'error'
+            });
+        } else {
+            setAlertState({
+                isOpen: true,
+                title: 'Error del Sistema',
+                message: 'Ocurrió un error inesperado al intentar eliminar el usuario.',
+                type: 'error'
+            });
+        }
+    } finally {
+        setDeleteId(null);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser.name && editingUser.email) {
-      await saveUser(editingUser as User);
-      setIsModalOpen(false);
-      loadData();
+      try {
+        await saveUser(editingUser as User);
+        setIsModalOpen(false);
+        loadData();
+      } catch (error) {
+        setAlertState({isOpen: true, title: 'Error', message: 'No se pudo guardar el usuario.', type: 'error'});
+      }
     }
   };
 
@@ -68,7 +116,7 @@ const UsersPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
         if (file.size > 5 * 1024 * 1024) { 
-            alert("La imagen es muy pesada. Máximo 5MB.");
+            setAlertState({isOpen: true, title: 'Archivo muy pesado', message: 'La imagen no debe superar los 5MB.', type: 'error'});
             return;
         }
         const reader = new FileReader();
@@ -79,18 +127,14 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  // Helper para renderizar Avatar o Inicial
   const UserAvatar = ({ user, size = 'sm' }: { user: Partial<User>, size?: 'sm' | 'lg' }) => {
       const dim = size === 'sm' ? 'w-10 h-10 text-sm' : 'w-32 h-32 text-4xl';
-      
       if (user.avatar) {
         return <img src={user.avatar} alt={user.name} className={`${dim} rounded-full object-cover border border-slate-200 bg-white`} />;
       }
-      
-      const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
       return (
         <div className={`${dim} rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold border border-indigo-200 select-none`}>
-          {initial}
+          {user.name ? user.name.charAt(0).toUpperCase() : '?'}
         </div>
       );
   };
@@ -100,7 +144,7 @@ const UsersPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
-            <p className="text-slate-500">Administra el acceso y la información del personal de la empresa.</p>
+            <p className="text-slate-500">Administra el acceso y la información del personal.</p>
         </div>
         {canCreate && (
           <button onClick={handleNew} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
@@ -136,16 +180,20 @@ const UsersPage: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-4 text-right space-x-2">
-                  <button onClick={() => handleView(user)} title="Ver" className="p-2 hover:bg-emerald-50 rounded text-slate-500 hover:text-emerald-600 transition-colors">
+                  <button onClick={() => handleView(user)} className="p-2 hover:bg-emerald-50 rounded text-slate-500 hover:text-emerald-600 transition-colors">
                     <Eye size={18} />
                   </button>
                   {canEdit && (
-                    <button onClick={() => handleEdit(user)} title="Editar" className="p-2 hover:bg-blue-50 rounded text-slate-500 hover:text-blue-600 transition-colors">
+                    <button onClick={() => handleEdit(user)} className="p-2 hover:bg-blue-50 rounded text-slate-500 hover:text-blue-600 transition-colors">
                       <Edit2 size={18} />
                     </button>
                   )}
                   {canDelete && (
-                    <button onClick={() => handleDelete(user.id)} title="Eliminar" className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors">
+                    <button 
+                        onClick={(e) => handleDeleteClick(user.id, e)} 
+                        className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors"
+                        title="Eliminar Usuario"
+                    >
                       <Trash2 size={18} />
                     </button>
                   )}
@@ -156,7 +204,25 @@ const UsersPage: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* MODALS */}
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="¿Eliminar Usuario?"
+        message="¿Está seguro que desea eliminar este usuario permanentemente? Esta acción no se puede deshacer."
+        confirmText="Sí, Eliminar"
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+      />
+
+      {/* EDIT MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-fade-in">
@@ -170,11 +236,8 @@ const UsersPage: React.FC = () => {
             </div>
             
             <form onSubmit={handleSave} className="space-y-4">
-              
-              {/* Avatar Management Section */}
               <div className="flex flex-col items-center gap-4 py-4 border-b border-slate-100 mb-4">
                  <UserAvatar user={editingUser} size="lg" />
-                 
                  {!isViewMode && (
                      <div className="flex gap-2">
                         <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
@@ -197,39 +260,33 @@ const UsersPage: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
                 <input 
-                  type="text" 
-                  required
-                  disabled={isViewMode}
+                  type="text" required disabled={isViewMode}
                   value={editingUser.name || ''}
                   onChange={e => setEditingUser({...editingUser, name: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                 <input 
-                  type="email" 
-                  required
-                  disabled={isViewMode}
+                  type="email" required disabled={isViewMode}
                   value={editingUser.email || ''}
                   onChange={e => setEditingUser({...editingUser, email: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 />
               </div>
 
-               {/* Password Field */}
                {!isViewMode && (
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                        {editingUser.id ? 'Nueva Contraseña (dejar en blanco para mantener)' : 'Contraseña'}
+                        {editingUser.id ? 'Nueva Contraseña (opcional)' : 'Contraseña'}
                     </label>
                     <input 
-                        type="password" 
-                        required={!editingUser.id}
+                        type="password" required={!editingUser.id}
                         value={editingUser.password || ''}
                         onChange={e => setEditingUser({...editingUser, password: e.target.value})}
-                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="••••••••"
                     />
                 </div>
@@ -238,10 +295,9 @@ const UsersPage: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
                 <select 
-                  value={editingUser.role || ''}
-                  disabled={isViewMode}
+                  value={editingUser.role || ''} disabled={isViewMode}
                   onChange={e => setEditingUser({...editingUser, role: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                 >
                   {roles.map(r => (
                     <option key={r.id} value={r.name}>{r.name}</option>

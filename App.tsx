@@ -9,6 +9,7 @@ import PermissionsPage from './pages/Permissions';
 import Attendance from './pages/Attendance';
 import AttendanceUpload from './pages/AttendanceUpload';
 import ActivitiesPage from './pages/Activities';
+import MeterReadingsPage from './pages/MeterReadings';
 import AITools from './pages/AITools';
 import { AuthProvider, useAuth } from './AuthContext';
 
@@ -77,6 +78,14 @@ const AppRoutes: React.FC = () => {
                   element={
                     <ProtectedRoute entity="Actividades">
                       <ActivitiesPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/meter-readings" 
+                  element={
+                    <ProtectedRoute entity="Estado Medidores">
+                      <MeterReadingsPage />
                     </ProtectedRoute>
                   } 
                 />

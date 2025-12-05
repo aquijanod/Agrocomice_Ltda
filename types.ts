@@ -68,6 +68,16 @@ export interface Activity {
   attachments: ActivityAttachment[];
 }
 
+export interface MeterReading {
+  id: string;
+  userId: string; // Reportado Por
+  date: string;   // YYYY-MM-DD
+  location: 'Casa Grande' | 'Casa Chica';
+  serviceType: 'Agua' | 'Luz' | 'Gas';
+  photos: ActivityAttachment[];
+  createdAt?: string;
+}
+
 export interface NavItem {
   label: string;
   path: string;
@@ -81,4 +91,4 @@ export enum AIModelType {
   VIDEO_GEN = 'veo-3.1-fast-generate-preview'
 }
 
-export const APP_ENTITIES = ['Usuarios', 'Roles', 'Permisos', 'Asistencia', 'Actividades', 'Herramientas IA'];
+export const APP_ENTITIES = ['Usuarios', 'Roles', 'Permisos', 'Asistencia', 'Actividades', 'Estado Medidores', 'Herramientas IA'];

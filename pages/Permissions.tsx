@@ -3,25 +3,30 @@ import { getPermissions, savePermission, deletePermission } from '../services/da
 import { Permission, APP_ENTITIES } from '../types';
 import { Key, Plus, Edit2, Trash2, X, Save, Eye } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { ConfirmModal, AlertModal } from '../components/Modals';
 
 const PermissionsPage: React.FC = () => {
   const { permissions } = useAuth();
   const [perms, setPerms] = useState<Permission[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
+  const [editingPerm, setEditingPerm] = useState<Partial<Permission>>({});
   
+  // Modals
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<{isOpen: boolean, title: string, message: string, type: 'success'|'error'|'info'}>({
+      isOpen: false, title: '', message: '', type: 'info'
+  });
+
   const canCreate = permissions?.['Permisos']?.create;
   const canEdit = permissions?.['Permisos']?.edit;
   const canDelete = permissions?.['Permisos']?.delete;
 
-  // Default structure for a new permission
   const defaultMatrix = () => {
     const m: any = {};
     APP_ENTITIES.forEach(e => m[e] = { view: false, create: false, edit: false, delete: false });
     return m;
   };
-
-  const [editingPerm, setEditingPerm] = useState<Partial<Permission>>({});
 
   useEffect(() => {
     loadData();
@@ -32,14 +37,14 @@ const PermissionsPage: React.FC = () => {
   };
 
   const handleView = (perm: Permission) => {
-    setEditingPerm(JSON.parse(JSON.stringify(perm))); // Deep copy
+    setEditingPerm(JSON.parse(JSON.stringify(perm)));
     setIsViewMode(true);
     setIsModalOpen(true);
   };
 
   const handleEdit = (perm: Permission) => {
     if (!canEdit) return;
-    setEditingPerm(JSON.parse(JSON.stringify(perm))); // Deep copy
+    setEditingPerm(JSON.parse(JSON.stringify(perm)));
     setIsViewMode(false);
     setIsModalOpen(true);
   };
@@ -51,20 +56,64 @@ const PermissionsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!canDelete) return;
-    if (window.confirm('¿Eliminar este perfil de permisos?')) {
-      await deletePermission(id);
+  // 1. Trigger
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!canDelete) {
+        setAlertState({isOpen: true, title: 'Acceso Denegado', message: 'No tiene permisos para eliminar perfiles.', type: 'error'});
+        return;
+    }
+    setDeleteId(id);
+  };
+
+  // 2. Execute
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+      await deletePermission(deleteId);
+      setAlertState({
+          isOpen: true, 
+          title: 'Perfil Eliminado', 
+          message: 'Perfil de permisos eliminado correctamente.', 
+          type: 'success'
+      });
       loadData();
+    } catch (error: any) {
+      console.error("Error al eliminar permiso:", error);
+      if (error?.code === '23503' || JSON.stringify(error).includes('violates foreign key constraint')) {
+          setAlertState({
+              isOpen: true,
+              title: 'No se pudo eliminar',
+              message: 'Este perfil está asignado a uno o más Roles.\n\nDebe asignar otro perfil a esos roles antes de eliminar este.',
+              type: 'error'
+          });
+      } else {
+          setAlertState({
+              isOpen: true,
+              title: 'Error',
+              message: 'Ocurrió un error inesperado al eliminar el permiso.',
+              type: 'error'
+          });
+      }
+    } finally {
+        setDeleteId(null);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingPerm.name && editingPerm.matrix) {
-      await savePermission(editingPerm as Permission);
-      setIsModalOpen(false);
-      loadData();
+      try {
+        await savePermission(editingPerm as Permission);
+        setIsModalOpen(false);
+        loadData();
+      } catch (error) {
+        console.error("Error saving permission:", error);
+        setAlertState({isOpen: true, title: 'Error', message: 'No se pudo guardar el perfil.', type: 'error'});
+      }
     }
   };
 
@@ -72,9 +121,10 @@ const PermissionsPage: React.FC = () => {
     if (isViewMode) return;
     setEditingPerm(prev => {
         const newMatrix = { ...prev.matrix };
-        if (newMatrix[entity]) {
-            newMatrix[entity] = { ...newMatrix[entity], [action]: !newMatrix[entity][action] };
+        if (!newMatrix[entity]) {
+            newMatrix[entity] = { view: false, create: false, edit: false, delete: false };
         }
+        newMatrix[entity] = { ...newMatrix[entity], [action]: !newMatrix[entity][action] };
         return { ...prev, matrix: newMatrix };
     });
   };
@@ -124,7 +174,11 @@ const PermissionsPage: React.FC = () => {
                     </button>
                   )}
                   {canDelete && (
-                    <button onClick={() => handleDelete(p.id)} className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors">
+                    <button 
+                        onClick={(e) => handleDeleteClick(p.id, e)} 
+                        className="p-2 hover:bg-red-50 rounded text-slate-500 hover:text-red-600 transition-colors"
+                        title="Eliminar Perfil"
+                    >
                       <Trash2 size={18} />
                     </button>
                   )}
@@ -135,7 +189,23 @@ const PermissionsPage: React.FC = () => {
         </table>
       </div>
 
-       {/* Modal with Matrix */}
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="¿Eliminar Perfil?"
+        message="¿Está seguro que desea eliminar este Perfil de Permisos? Esta acción no se puede deshacer."
+        confirmText="Eliminar Perfil"
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+      />
+
        {isModalOpen && editingPerm.matrix && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-fade-in">
@@ -153,29 +223,23 @@ const PermissionsPage: React.FC = () => {
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Perfil</label>
                     <input 
-                    type="text" 
-                    required
-                    disabled={isViewMode}
-                    value={editingPerm.name || ''}
-                    onChange={e => setEditingPerm({...editingPerm, name: e.target.value})}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
-                    placeholder="Ej: Administrador, Vendedor"
+                        type="text" required disabled={isViewMode}
+                        value={editingPerm.name || ''}
+                        onChange={e => setEditingPerm({...editingPerm, name: e.target.value})}
+                        className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                     />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
                     <input 
-                    type="text" 
-                    required
-                    disabled={isViewMode}
-                    value={editingPerm.description || ''}
-                    onChange={e => setEditingPerm({...editingPerm, description: e.target.value})}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
+                        type="text" required disabled={isViewMode}
+                        value={editingPerm.description || ''}
+                        onChange={e => setEditingPerm({...editingPerm, description: e.target.value})}
+                        className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                     />
                 </div>
               </div>
 
-              {/* Permission Matrix */}
               <div className="border rounded-lg overflow-hidden">
                 <div className="bg-slate-100 p-3 grid grid-cols-5 text-sm font-bold text-slate-700">
                     <div className="col-span-1">Entidad</div>
