@@ -9,6 +9,7 @@ const MeterReadingsPage: React.FC = () => {
   const { permissions, user: currentUser } = useAuth();
   const [readings, setReadings] = useState<MeterReading[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Modal de Edición/Creación
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,11 +39,18 @@ const MeterReadingsPage: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    const [data, usrs] = await Promise.all([getMeterReadings(), getUsers()]);
-    // Asegurar ordenamiento DESC por fecha
-    const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setReadings(sortedData);
-    setUsers(usrs);
+    setLoading(true);
+    try {
+        const [data, usrs] = await Promise.all([getMeterReadings(), getUsers()]);
+        // Asegurar ordenamiento DESC por fecha
+        const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setReadings(sortedData);
+        setUsers(usrs);
+    } catch (error) {
+        console.error("Error loading meter readings:", error);
+    } finally {
+        setLoading(false);
+    }
   };
 
   const handleNew = () => {
@@ -274,108 +282,115 @@ const MeterReadingsPage: React.FC = () => {
       </div>
 
       {/* --- VISTA AGRUPADA --- */}
-      <div className="space-y-12">
-        {locations.map(location => {
-            // Verificar si esta ubicación tiene datos visibles (para no renderizar secciones vacías si se filtra)
-            const hasDataInLocation = services.some(srv => getFilteredReadings(location, srv).length > 0);
-            if (!hasDataInLocation) return null;
+      {loading ? (
+        <div className="py-20 text-center text-slate-400 flex flex-col items-center">
+            <Loader2 size={40} className="animate-spin mb-4 text-blue-600" />
+            <p>Cargando registros de medidores...</p>
+        </div>
+      ) : (
+        <div className="space-y-12">
+            {locations.map(location => {
+                // Verificar si esta ubicación tiene datos visibles (para no renderizar secciones vacías si se filtra)
+                const hasDataInLocation = services.some(srv => getFilteredReadings(location, srv).length > 0);
+                if (!hasDataInLocation) return null;
 
-            return (
-                <div key={location} className="animate-fade-in">
-                    <div className="flex items-center gap-3 mb-6 pb-2 border-b border-slate-300">
-                        <MapPin className="text-slate-400" size={24} />
-                        <h2 className="text-2xl font-bold text-slate-800">{location}</h2>
-                    </div>
+                return (
+                    <div key={location} className="animate-fade-in">
+                        <div className="flex items-center gap-3 mb-6 pb-2 border-b border-slate-300">
+                            <MapPin className="text-slate-400" size={24} />
+                            <h2 className="text-2xl font-bold text-slate-800">{location}</h2>
+                        </div>
 
-                    <div className="space-y-8 pl-4 border-l-2 border-slate-100">
-                        {services.map(service => {
-                            const items = getFilteredReadings(location, service);
-                            if (items.length === 0) return null;
+                        <div className="space-y-8 pl-4 border-l-2 border-slate-100">
+                            {services.map(service => {
+                                const items = getFilteredReadings(location, service);
+                                if (items.length === 0) return null;
 
-                            return (
-                                <div key={service}>
-                                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        {getServiceIcon(service)} {service} 
-                                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-normal border border-slate-200">{items.length}</span>
-                                    </h3>
-                                    
-                                    {/* --- GRID DE TARJETAS --- */}
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                        {items.map(reading => (
-                                            <div key={reading.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
-                                                
-                                                {/* Imagen (Click para Preview) */}
-                                                <div className="h-32 bg-slate-100 relative overflow-hidden cursor-pointer" onClick={() => reading.photos?.[0] && setPreviewImage(reading.photos[0].url)}>
-                                                    {reading.photos && reading.photos.length > 0 ? (
-                                                        <>
-                                                            <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                                                <ZoomIn className="text-white drop-shadow-md" size={24}/>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                            <ImageIcon size={32} />
-                                                        </div>
-                                                    )}
+                                return (
+                                    <div key={service}>
+                                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                            {getServiceIcon(service)} {service} 
+                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-normal border border-slate-200">{items.length}</span>
+                                        </h3>
+                                        
+                                        {/* --- GRID DE TARJETAS --- */}
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                            {items.map(reading => (
+                                                <div key={reading.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
                                                     
-                                                    {/* Badge de Cantidad de Fotos */}
-                                                    {reading.photos && reading.photos.length > 1 && (
-                                                        <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
-                                                            <ImageIcon size={10} /> +{reading.photos.length - 1}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Info Card */}
-                                                <div className="p-3 flex-1 flex flex-col justify-between">
-                                                    <div>
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                                            <Calendar size={12} /> {formatDate(reading.date)}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
-                                                        <div className="flex items-center gap-1.5 overflow-hidden">
-                                                             <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-500 shrink-0">
-                                                                 {getUserName(reading.userId).charAt(0)}
-                                                             </div>
-                                                             <span className="truncate text-xs text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
-                                                        </div>
+                                                    {/* Imagen (Click para Preview) */}
+                                                    <div className="h-32 bg-slate-100 relative overflow-hidden cursor-pointer" onClick={() => reading.photos?.[0] && setPreviewImage(reading.photos[0].url)}>
+                                                        {reading.photos && reading.photos.length > 0 ? (
+                                                            <>
+                                                                <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
+                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                                                    <ZoomIn className="text-white drop-shadow-md" size={24}/>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                                <ImageIcon size={32} />
+                                                            </div>
+                                                        )}
                                                         
-                                                        <div className="flex items-center gap-1">
-                                                            <button onClick={() => handleView(reading)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                                                <Eye size={16} />
-                                                            </button>
-                                                            {canDelete && (
-                                                                <button 
-                                                                    onClick={(e) => handleDeleteClick(reading.id, e)} 
-                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                >
-                                                                    <Trash2 size={16} />
+                                                        {/* Badge de Cantidad de Fotos */}
+                                                        {reading.photos && reading.photos.length > 1 && (
+                                                            <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
+                                                                <ImageIcon size={10} /> +{reading.photos.length - 1}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Info Card */}
+                                                    <div className="p-3 flex-1 flex flex-col justify-between">
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+                                                                <Calendar size={12} /> {formatDate(reading.date)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
+                                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-500 shrink-0">
+                                                                    {getUserName(reading.userId).charAt(0)}
+                                                                </div>
+                                                                <span className="truncate text-xs text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
+                                                            </div>
+                                                            
+                                                            <div className="flex items-center gap-1">
+                                                                <button onClick={() => handleView(reading)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                                    <Eye size={16} />
                                                                 </button>
-                                                            )}
+                                                                {canDelete && (
+                                                                    <button 
+                                                                        onClick={(e) => handleDeleteClick(reading.id, e)} 
+                                                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            );
-        })}
+                );
+            })}
 
-        {readings.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                <Gauge size={48} className="mx-auto mb-3 opacity-30" />
-                <p>No se encontraron registros de medidores.</p>
-            </div>
-        )}
-      </div>
+            {readings.length === 0 && (
+                <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                    <Gauge size={48} className="mx-auto mb-3 opacity-30" />
+                    <p>No se encontraron registros de medidores.</p>
+                </div>
+            )}
+        </div>
+      )}
 
       {/* --- MODALS --- */}
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, ActivityStatus, User } from '../types';
-import { getActivities, saveActivity, deleteActivity, getUsers } from '../services/dataService';
-import { Plus, Edit2, Trash2, X, Save, Calendar, CheckCircle2, Clock, AlertCircle, Ban, Eye, ChevronLeft, ChevronRight, Upload, ImageIcon, ZoomIn } from 'lucide-react';
+import { getActivitiesByRange, saveActivity, deleteActivity, getUsers } from '../services/dataService';
+import { Plus, Edit2, Trash2, X, Save, Calendar, CheckCircle2, Clock, AlertCircle, Ban, Eye, ChevronLeft, ChevronRight, Upload, ImageIcon, ZoomIn, Loader2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -15,6 +15,9 @@ const ActivitiesPage: React.FC = () => {
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  // Nuevo estado para loading en cambio de mes
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
 
   // Image Preview State
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -30,13 +33,33 @@ const ActivitiesPage: React.FC = () => {
   const canDelete = permissions?.['Actividades']?.delete;
 
   useEffect(() => {
-    loadData();
+    // Carga inicial de usuarios
+    getUsers().then(setUsers);
   }, []);
 
-  const loadData = async () => {
-    const [acts, usrs] = await Promise.all([getActivities(), getUsers()]);
-    setActivities(acts);
-    setUsers(usrs);
+  // Efecto que se dispara al cambiar de mes para cargar actividades
+  useEffect(() => {
+    fetchMonthActivities();
+  }, [currentMonth]);
+
+  const fetchMonthActivities = async () => {
+    setIsLoadingActivities(true);
+    try {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        
+        // Primer día del mes
+        const start = new Date(year, month, 1).toISOString().split('T')[0];
+        // Último día del mes
+        const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+        const acts = await getActivitiesByRange(start, end);
+        setActivities(acts);
+    } catch (error) {
+        console.error("Error fetching month activities:", error);
+    } finally {
+        setIsLoadingActivities(false);
+    }
   };
 
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
@@ -70,20 +93,14 @@ const ActivitiesPage: React.FC = () => {
   };
 
   const getProcessedActivities = () => {
-      let filtered = [];
+      let filtered = activities;
+
+      // Si hay una fecha seleccionada, filtrar solo esa fecha
       if (selectedDate) {
           const dateStr = selectedDate.toISOString().split('T')[0];
-          filtered = activities.filter(act => dateStr >= act.startDate && dateStr <= act.endDate);
-      } else {
-          const targetMonth = currentMonth.getMonth();
-          const targetYear = currentMonth.getFullYear();
-          filtered = activities.filter(act => {
-              const startParts = act.startDate.split('-');
-              const y = parseInt(startParts[0]);
-              const m = parseInt(startParts[1]) - 1;
-              return y === targetYear && m === targetMonth;
-          });
-      }
+          filtered = filtered.filter(act => dateStr >= act.startDate && dateStr <= act.endDate);
+      } 
+      // Si no hay fecha seleccionada, mostramos TODAS las actividades cargadas (que ya corresponden al mes actual)
 
       // Filtro de Seguridad: Trabajador solo ve sus asignaciones
       if (currentUser?.role === 'Trabajador') {
@@ -156,7 +173,7 @@ const ActivitiesPage: React.FC = () => {
             message: 'La actividad ha sido eliminada correctamente.', 
             type: 'success'
         });
-        loadData();
+        fetchMonthActivities(); // Recargar datos del mes actual
     } catch (error) {
         console.error(error);
         setAlertState({
@@ -176,7 +193,7 @@ const ActivitiesPage: React.FC = () => {
         try {
             await saveActivity(editingActivity as Activity);
             setIsModalOpen(false);
-            loadData();
+            fetchMonthActivities(); // Recargar datos del mes actual
         } catch (error) {
             setAlertState({isOpen: true, title: 'Error', message: 'Error al guardar la actividad.', type: 'error'});
         }
@@ -251,11 +268,12 @@ const ActivitiesPage: React.FC = () => {
           <div className="lg:col-span-1 lg:order-last space-y-4">
                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden sticky top-24">
                     <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                         <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-white rounded-md transition-shadow text-slate-500"><ChevronLeft size={20}/></button>
-                         <h3 className="font-bold text-slate-800 capitalize text-lg">
+                         <button onClick={() => changeMonth(-1)} disabled={isLoadingActivities} className="p-1 hover:bg-white rounded-md transition-shadow text-slate-500 disabled:opacity-50"><ChevronLeft size={20}/></button>
+                         <h3 className="font-bold text-slate-800 capitalize text-lg flex items-center gap-2">
                              {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                             {isLoadingActivities && <Loader2 className="animate-spin text-blue-500" size={16} />}
                          </h3>
-                         <button onClick={() => changeMonth(1)} className="p-1 hover:bg-white rounded-md transition-shadow text-slate-500"><ChevronRight size={20}/></button>
+                         <button onClick={() => changeMonth(1)} disabled={isLoadingActivities} className="p-1 hover:bg-white rounded-md transition-shadow text-slate-500 disabled:opacity-50"><ChevronRight size={20}/></button>
                     </div>
                     
                     <div className="p-4">
@@ -329,88 +347,95 @@ const ActivitiesPage: React.FC = () => {
                   )}
               </div>
 
-              <div className="space-y-8">
-                  {statusOrder.map(status => {
-                      const items = groupedActivities[status];
-                      if (items.length === 0) return null;
+              {isLoadingActivities ? (
+                  <div className="py-20 text-center text-slate-400 flex flex-col items-center">
+                      <Loader2 size={40} className="animate-spin mb-4 text-blue-600" />
+                      <p>Cargando actividades del mes...</p>
+                  </div>
+              ) : (
+                <div className="space-y-8">
+                    {statusOrder.map(status => {
+                        const items = groupedActivities[status];
+                        if (items.length === 0) return null;
 
-                      return (
-                          <div key={status} className="animate-fade-in">
-                              <h3 className={`font-bold text-lg mb-4 flex items-center gap-2 
-                                ${status === 'Pendiente' ? 'text-blue-700' : 
-                                  status === 'En Progreso' ? 'text-orange-700' :
-                                  status === 'Completada' ? 'text-green-700' : 'text-slate-600'}
-                              `}>
-                                  {getStatusIcon(status)} 
-                                  {status} 
-                                  <span className="text-sm font-normal text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100 shadow-sm ml-2">
-                                      {items.length}
-                                  </span>
-                              </h3>
-                              
-                              <div className="grid grid-cols-1 gap-4">
-                                  {items.map(act => {
-                                      const assignee = users.find(u => u.id === act.assigneeId);
-                                      return (
-                                          <div key={act.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row justify-between gap-4 hover:shadow-md transition-shadow relative overflow-hidden group">
-                                              <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                                                  status === 'Pendiente' ? 'bg-blue-500' : 
-                                                  status === 'En Progreso' ? 'bg-orange-500' :
-                                                  status === 'Completada' ? 'bg-green-500' : 'bg-slate-400'
-                                              }`}></div>
+                        return (
+                            <div key={status} className="animate-fade-in">
+                                <h3 className={`font-bold text-lg mb-4 flex items-center gap-2 
+                                    ${status === 'Pendiente' ? 'text-blue-700' : 
+                                    status === 'En Progreso' ? 'text-orange-700' :
+                                    status === 'Completada' ? 'text-green-700' : 'text-slate-600'}
+                                `}>
+                                    {getStatusIcon(status)} 
+                                    {status} 
+                                    <span className="text-sm font-normal text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100 shadow-sm ml-2">
+                                        {items.length}
+                                    </span>
+                                </h3>
+                                
+                                <div className="grid grid-cols-1 gap-4">
+                                    {items.map(act => {
+                                        const assignee = users.find(u => u.id === act.assigneeId);
+                                        return (
+                                            <div key={act.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row justify-between gap-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                                    status === 'Pendiente' ? 'bg-blue-500' : 
+                                                    status === 'En Progreso' ? 'bg-orange-500' :
+                                                    status === 'Completada' ? 'bg-green-500' : 'bg-slate-400'
+                                                }`}></div>
 
-                                              <div className="flex-1 space-y-2 pl-2">
-                                                  <div className="flex items-start justify-between md:justify-start gap-4">
-                                                    <h3 className="font-bold text-base text-slate-800">{act.name}</h3>
-                                                  </div>
-                                                  <p className="text-slate-600 text-sm line-clamp-2">{act.description}</p>
-                                                  
-                                                  <div className="flex flex-wrap gap-4 text-xs text-slate-500 mt-2 items-center">
-                                                      <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                                                          <Calendar size={12} className="text-slate-400"/>
-                                                          <span className="font-medium text-slate-700">{formatDate(act.startDate)}</span>
-                                                      </div>
-                                                      <div className="flex items-center gap-1">
-                                                          <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                                                              {assignee?.name.charAt(0)}
-                                                          </div>
-                                                          {assignee?.name || 'Sin asignar'}
-                                                      </div>
-                                                      {act.attachments.length > 0 && (
-                                                          <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                                              <ImageIcon size={12} /> {act.attachments.length}
-                                                          </div>
-                                                      )}
-                                                  </div>
-                                              </div>
+                                                <div className="flex-1 space-y-2 pl-2">
+                                                    <div className="flex items-start justify-between md:justify-start gap-4">
+                                                        <h3 className="font-bold text-base text-slate-800">{act.name}</h3>
+                                                    </div>
+                                                    <p className="text-slate-600 text-sm line-clamp-2">{act.description}</p>
+                                                    
+                                                    <div className="flex flex-wrap gap-4 text-xs text-slate-500 mt-2 items-center">
+                                                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                                            <Calendar size={12} className="text-slate-400"/>
+                                                            <span className="font-medium text-slate-700">{formatDate(act.startDate)}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                                                                {assignee?.name.charAt(0)}
+                                                            </div>
+                                                            {assignee?.name || 'Sin asignar'}
+                                                        </div>
+                                                        {act.attachments.length > 0 && (
+                                                            <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                                                <ImageIcon size={12} /> {act.attachments.length}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                              <div className="flex items-center gap-2 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                                  <button onClick={() => handleView(act)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
-                                                      <Eye size={18} />
-                                                  </button>
-                                                  {canEdit && (
-                                                      <button onClick={() => handleEdit(act)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                                          <Edit2 size={18} />
-                                                      </button>
-                                                  )}
-                                                  {canDelete && (
-                                                      <button 
-                                                        onClick={(e) => handleDeleteClick(act.id, e)} 
-                                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Eliminar Actividad"
-                                                      >
-                                                          <Trash2 size={18} />
-                                                      </button>
-                                                  )}
-                                              </div>
-                                          </div>
-                                      )
-                                  })}
-                              </div>
-                          </div>
-                      );
-                  })}
-              </div>
+                                                <div className="flex items-center gap-2 border-t pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4 border-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleView(act)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
+                                                        <Eye size={18} />
+                                                    </button>
+                                                    {canEdit && (
+                                                        <button onClick={() => handleEdit(act)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                            <Edit2 size={18} />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button 
+                                                            onClick={(e) => handleDeleteClick(act.id, e)} 
+                                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Eliminar Actividad"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+              )}
           </div>
       </div>
 
@@ -540,7 +565,7 @@ const ActivitiesPage: React.FC = () => {
                       <div>
                           <label className="block text-sm font-bold text-slate-700 mb-2">Evidencia Fotográfica</label>
                           {!isViewMode && (
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
+                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors mb-4 relative">
                                 <input 
                                     type="file" multiple accept="image/*"
                                     id="file-upload" 

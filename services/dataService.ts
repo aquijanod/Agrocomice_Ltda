@@ -71,6 +71,24 @@ export const resolveUserPermissions = async (roleName: string): Promise<Permissi
     return permData ? (permData.matrix as PermissionMatrix) : createEmptyMatrix();
 };
 
+// --- DASHBOARD OPTIMIZED STATS ---
+export const getDashboardStats = async () => {
+    // Ejecutar conteos en paralelo directamente en la BD sin descargar los datos (Head request)
+    const [workers, pending, inProgress, completed] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'Trabajador'),
+        supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'Pendiente'),
+        supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'En Progreso'),
+        supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'Completada')
+    ]);
+
+    return {
+        workers: workers.count || 0,
+        pending: pending.count || 0,
+        inProgress: inProgress.count || 0,
+        completed: completed.count || 0
+    };
+};
+
 // --- USERS CRUD ---
 
 export const getUsers = async (): Promise<User[]> => {
@@ -217,6 +235,29 @@ export const deletePermission = async (id: string): Promise<void> => {
 
 export const getActivities = async (): Promise<Activity[]> => {
     const { data, error } = await supabase.from('activities').select('*');
+    if (error) throw error;
+    return data.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        startDate: a.start_date,
+        endDate: a.end_date,
+        assigneeId: a.assignee_id,
+        status: a.status,
+        attachments: a.attachments || []
+    }));
+};
+
+// NUEVA FUNCIÓN: Obtener actividades dentro de un rango de fechas
+export const getActivitiesByRange = async (startStr: string, endStr: string): Promise<Activity[]> => {
+    // La lógica de superposición (overlap) para un rango es:
+    // activity.start_date <= range_end AND activity.end_date >= range_start
+    const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .lte('start_date', endStr)
+        .gte('end_date', startStr);
+
     if (error) throw error;
     return data.map((a: any) => ({
         id: a.id,

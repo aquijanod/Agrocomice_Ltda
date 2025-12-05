@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Users, CloudSun, MapPin, Sun, Cloud, CloudDrizzle, CloudRain, Clock, TrendingUp, CheckCircle2, Loader2 } from 'lucide-react';
-import { getActivities, getUsers } from '../services/dataService';
-import { Activity, User } from '../types';
+import { getDashboardStats } from '../services/dataService';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 
-const StatCard: React.FC<{ title: string; value: string; icon: React.ElementType; color: string }> = ({ title, value, icon: Icon, color }) => (
+const StatCard: React.FC<{ title: string; value: string | React.ReactNode; icon: React.ElementType; color: string }> = ({ title, value, icon: Icon, color }) => (
   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
     <div className={`p-4 rounded-full ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
       <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
     </div>
     <div>
       <p className="text-sm text-slate-500 font-medium">{title}</p>
-      <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+      <h3 className="text-2xl font-bold text-slate-800">
+        {value}
+      </h3>
     </div>
   </div>
 );
@@ -32,8 +33,9 @@ const getWeatherInfo = (code: number) => {
 type WeatherMetric = 'temp' | 'precip' | 'wind';
 
 const Dashboard: React.FC = () => {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  // Optimized Stats State
+  const [stats, setStats] = useState({ workers: 0, pending: 0, inProgress: 0, completed: 0 });
+  const [loadingStats, setLoadingStats] = useState(true);
   
   // --- WEATHER WIDGET STATE ---
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -48,14 +50,16 @@ const Dashboard: React.FC = () => {
   const LON = -71.4169345;
 
   useEffect(() => {
-    // 1. Load CRM Data
+    // 1. Load CRM Data (Optimized Count Only)
     const loadData = async () => {
         try {
-            const [acts, usrs] = await Promise.all([getActivities(), getUsers()]);
-            setActivities(acts);
-            setUsers(usrs);
+            setLoadingStats(true);
+            const kpis = await getDashboardStats();
+            setStats(kpis);
         } catch (error) {
-            console.error("Error loading CRM data:", error);
+            console.error("Error loading CRM stats:", error);
+        } finally {
+            setLoadingStats(false);
         }
     };
     loadData();
@@ -152,12 +156,6 @@ const Dashboard: React.FC = () => {
       current: 0, condition: 'Cargando...', fullDay: '...', rainProb: 0, humidity: 0, wind: 0, hourly: [], icon: Sun
   };
 
-  // Filtered Counts (Static KPIs)
-  const workerCount = users.filter(u => u.role === 'Trabajador').length;
-  const pendingCount = activities.filter(a => a.status === 'Pendiente').length;
-  const inProgressCount = activities.filter(a => a.status === 'En Progreso').length;
-  const completedCount = activities.filter(a => a.status === 'Completada').length;
-
   const getChartConfig = () => {
       switch(activeMetric) {
           case 'precip':
@@ -191,6 +189,13 @@ const Dashboard: React.FC = () => {
       );
   };
 
+  const renderValue = (val: number) => {
+      if (loadingStats) {
+          return <div className="animate-pulse bg-slate-200 h-8 w-16 rounded"></div>;
+      }
+      return val.toString();
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -200,10 +205,10 @@ const Dashboard: React.FC = () => {
 
       {/* KPI GRID - 4 Cols including Completed */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Trabajadores Activos" value={workerCount.toString()} icon={Users} color="bg-blue-500" />
-        <StatCard title="Actividades Pendientes" value={pendingCount.toString()} icon={Clock} color="bg-orange-500" />
-        <StatCard title="Actividades en Progreso" value={inProgressCount.toString()} icon={TrendingUp} color="bg-indigo-500" />
-        <StatCard title="Actividades Completadas" value={completedCount.toString()} icon={CheckCircle2} color="bg-green-500" />
+        <StatCard title="Trabajadores Activos" value={renderValue(stats.workers)} icon={Users} color="bg-blue-500" />
+        <StatCard title="Actividades Pendientes" value={renderValue(stats.pending)} icon={Clock} color="bg-orange-500" />
+        <StatCard title="Actividades en Progreso" value={renderValue(stats.inProgress)} icon={TrendingUp} color="bg-indigo-500" />
+        <StatCard title="Actividades Completadas" value={renderValue(stats.completed)} icon={CheckCircle2} color="bg-green-500" />
       </div>
 
       <hr className="border-slate-200" />
