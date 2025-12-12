@@ -115,30 +115,28 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                         div::-webkit-scrollbar { display: none; }
                     `}</style>
 
-                    {/* BOTÓN ANTERIOR */}
+                    {/* BOTÓN ANTERIOR (Estilo unificado) */}
                     {page > 0 && (
-                        <div className="w-full md:min-w-[80px] md:w-auto flex items-center justify-center snap-start h-12 md:h-[280px]">
+                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
                             <button 
                                 onClick={handlePrev}
                                 disabled={loading}
-                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-all p-2 rounded-xl hover:bg-blue-50 h-full w-full border border-dashed border-slate-300 hover:border-blue-200 group"
+                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group"
                                 title="Página Anterior"
                             >
-                                <div className="p-1 md:p-3 bg-slate-100 rounded-full group-hover:bg-blue-100 transition-colors">
-                                    <ChevronLeft size={20} />
-                                </div>
-                                <span className="text-xs md:text-[10px] font-bold text-center leading-tight uppercase tracking-wide">Anterior</span>
+                                <ChevronLeft size={24} className="md:w-8 md:h-8" />
+                                <span className="text-xs font-bold whitespace-nowrap">ANTERIOR</span>
                             </button>
                         </div>
                     )}
 
                     {readings.map(reading => (
-                        // Card Responsiva: Horizontal en Móvil, Vertical en Desktop. Altura autoajustable.
-                        <div key={reading.id} className="w-full md:min-w-[240px] md:w-[240px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-row md:flex-col min-h-[8rem] md:min-h-[280px] h-auto">
+                        // Card Responsiva: Horizontal en Móvil, Vertical en Desktop. Altura autoajustable pero con mínimo.
+                        <div key={reading.id} className="w-full md:min-w-[260px] md:w-[260px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-row md:flex-col min-h-[160px] md:min-h-[320px] h-auto">
                             
-                            {/* Imagen */}
+                            {/* Imagen - Izquierda en móvil, Arriba en Desktop */}
                             <div 
-                                className="w-32 md:w-full min-h-full md:min-h-0 md:h-40 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
+                                className="w-32 md:w-full min-h-full md:min-h-0 md:h-48 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (reading.photos && reading.photos.length > 0) {
@@ -164,64 +162,63 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                                 )}
                             </div>
 
-                            {/* Info */}
-                            <div className="p-3 flex-1 flex flex-col justify-between min-w-0">
-                                <div>
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
-                                        <Calendar size={12} /> {formatDate(reading.date)}
-                                    </div>
-                                    
-                                    {/* Comentario en la tarjeta - Autoajustable */}
-                                    {reading.comments && (
-                                        <div className="text-[10px] text-slate-500 italic bg-slate-50 p-1.5 rounded border border-slate-100 mb-1" title={reading.comments}>
-                                            {reading.comments}
-                                        </div>
-                                    )}
+                            {/* Info Container */}
+                            <div className="p-3 flex-1 flex flex-col min-w-0">
+                                
+                                {/* 1. FECHA (Arriba) */}
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
+                                    <Calendar size={14} className="text-blue-500" /> {formatDate(reading.date)}
                                 </div>
                                 
-                                <div className="border-t border-slate-100 pt-2 mt-auto flex justify-between items-center gap-2">
-                                    <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
-                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
-                                            {getUserName(reading.userId).charAt(0)}
-                                        </div>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="truncate text-xs font-medium text-slate-700 max-w-[80px]" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
-                                            <span className="text-[10px] text-slate-400 truncate">Reportador</span>
-                                        </div>
+                                {/* 2. COMENTARIO (Medio) - Sin comillas decorativas */}
+                                {reading.comments && (
+                                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 leading-snug" title={reading.comments}>
+                                        {reading.comments}
                                     </div>
-                                    
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onView(reading);
-                                            }} 
-                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="Ver detalle"
-                                        >
-                                            <Eye size={16} />
+                                )}
+
+                                {/* 3. REPORTADO POR (Debajo del comentario) */}
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
+                                        {getUserName(reading.userId).charAt(0)}
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="truncate text-xs font-medium text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
+                                        <span className="text-[9px] text-slate-400">Reportador</span>
+                                    </div>
+                                </div>
+                                
+                                {/* 4. ACCIONES (Fondo Abajo) */}
+                                <div className="mt-auto pt-2 border-t border-slate-100 flex justify-end items-center gap-2">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onView(reading);
+                                        }} 
+                                        className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors border border-slate-200"
+                                    >
+                                        Ver Detalle
+                                    </button>
+                                    {canDelete && (
+                                        <button onClick={(e) => { e.stopPropagation(); onDelete(reading.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                                            <Trash2 size={16} />
                                         </button>
-                                        {canDelete && (
-                                            <button onClick={(e) => { e.stopPropagation(); onDelete(reading.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     ))}
 
-                    {/* BOTÓN SIGUIENTE */}
+                    {/* BOTÓN SIGUIENTE (Estilo unificado) */}
                     {hasMore && (
-                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start h-14 md:h-[280px]">
+                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
                             <button 
                                 onClick={handleNext}
                                 disabled={loading}
-                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100"
+                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group"
                             >
                                 {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={24} className="md:w-8 md:h-8" />}
-                                <span className="text-xs font-bold whitespace-nowrap">Ver más</span>
+                                <span className="text-xs font-bold whitespace-nowrap">VER MÁS</span>
                             </button>
                         </div>
                     )}
@@ -232,7 +229,7 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
              {loading && readings.length === 0 && (
                 <div className="flex flex-col md:flex-row gap-4 overflow-hidden">
                     {[1,2,3].map(i => (
-                        <div key={i} className="w-full md:min-w-[240px] h-32 md:h-[280px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
+                        <div key={i} className="w-full md:min-w-[260px] h-40 md:h-[320px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
                     ))}
                 </div>
             )}
