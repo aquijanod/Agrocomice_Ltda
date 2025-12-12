@@ -53,7 +53,7 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
             setHasMore(hasNext);
             setPage(pageIndex);
             
-            // Resetear scroll visualmente al inicio
+            // Resetear scroll visualmente al inicio en desktop
             if (scrollContainerRef.current) {
                 scrollContainerRef.current.scrollTo({ left: 0, behavior: 'auto' });
             }
@@ -101,43 +101,44 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                 )}
             </h3>
 
-            {/* Carrusel Container */}
+            {/* Container Responsivo: Flex Column en móvil, Flex Row con scroll en Desktop */}
             <div className="relative w-full min-w-0">
                 <div 
                     ref={scrollContainerRef}
-                    className="flex gap-4 overflow-x-auto pb-4 px-1 snap-x snap-mandatory items-center w-full touch-pan-x"
+                    className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4 px-1 md:snap-x md:snap-mandatory items-center w-full touch-pan-x"
                     style={{ 
                         scrollbarWidth: 'none', 
                         msOverflowStyle: 'none', 
-                        overscrollBehaviorX: 'contain' 
                     }}
                 >
                     <style>{`
                         div::-webkit-scrollbar { display: none; }
                     `}</style>
 
-                    {/* BOTÓN IZQUIERDA: ANTERIOR (Solo si página > 0) */}
+                    {/* BOTÓN ANTERIOR */}
                     {page > 0 && (
-                        <div className="min-w-[80px] flex items-center justify-center snap-start h-[280px]">
+                        <div className="w-full md:min-w-[80px] md:w-auto flex items-center justify-center snap-start h-12 md:h-[280px]">
                             <button 
                                 onClick={handlePrev}
                                 disabled={loading}
-                                className="flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-all p-2 rounded-xl hover:bg-blue-50 h-[200px] w-full border border-dashed border-slate-300 hover:border-blue-200 group"
+                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-all p-2 rounded-xl hover:bg-blue-50 h-full w-full border border-dashed border-slate-300 hover:border-blue-200 group"
                                 title="Página Anterior"
                             >
-                                <div className="p-3 bg-slate-100 rounded-full group-hover:bg-blue-100 transition-colors">
+                                <div className="p-1 md:p-3 bg-slate-100 rounded-full group-hover:bg-blue-100 transition-colors">
                                     <ChevronLeft size={20} />
                                 </div>
-                                <span className="text-[10px] font-bold text-center leading-tight uppercase tracking-wide">Anterior</span>
+                                <span className="text-xs md:text-[10px] font-bold text-center leading-tight uppercase tracking-wide">Anterior</span>
                             </button>
                         </div>
                     )}
 
                     {readings.map(reading => (
-                        <div key={reading.id} className="min-w-[240px] w-[240px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-col h-[280px]">
-                            {/* Imagen - CLICK AQUI ABRE LA IMAGEN GRANDE */}
+                        // Card Responsiva: Horizontal en Móvil, Vertical en Desktop. Altura autoajustable.
+                        <div key={reading.id} className="w-full md:min-w-[240px] md:w-[240px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-row md:flex-col min-h-[8rem] md:min-h-[280px] h-auto">
+                            
+                            {/* Imagen */}
                             <div 
-                                className="h-40 bg-slate-100 relative overflow-hidden cursor-pointer" 
+                                className="w-32 md:w-full min-h-full md:min-h-0 md:h-40 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (reading.photos && reading.photos.length > 0) {
@@ -164,33 +165,32 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                             </div>
 
                             {/* Info */}
-                            <div className="p-3 flex-1 flex flex-col justify-between">
+                            <div className="p-3 flex-1 flex flex-col justify-between min-w-0">
                                 <div>
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
                                         <Calendar size={12} /> {formatDate(reading.date)}
                                     </div>
                                     
-                                    {/* Comentario en la tarjeta */}
+                                    {/* Comentario en la tarjeta - Autoajustable */}
                                     {reading.comments && (
-                                        <div className="text-[10px] text-slate-500 italic bg-slate-50 p-1.5 rounded border border-slate-100 mb-1 line-clamp-2" title={reading.comments}>
+                                        <div className="text-[10px] text-slate-500 italic bg-slate-50 p-1.5 rounded border border-slate-100 mb-1" title={reading.comments}>
                                             {reading.comments}
                                         </div>
                                     )}
                                 </div>
                                 
-                                <div className="border-t border-slate-100 pt-2 mt-auto flex justify-between items-center">
-                                    <div className="flex items-center gap-1.5 overflow-hidden">
+                                <div className="border-t border-slate-100 pt-2 mt-auto flex justify-between items-center gap-2">
+                                    <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
                                         <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
                                             {getUserName(reading.userId).charAt(0)}
                                         </div>
-                                        <div className="flex flex-col">
-                                            <span className="truncate text-xs font-medium text-slate-700 max-w-[90px]" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
-                                            <span className="text-[10px] text-slate-400">Reportador</span>
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="truncate text-xs font-medium text-slate-700 max-w-[80px]" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
+                                            <span className="text-[10px] text-slate-400 truncate">Reportador</span>
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center gap-1">
-                                        {/* CLICK AQUI ABRE EL DETALLE (MODAL) */}
+                                    <div className="flex items-center gap-1 shrink-0">
                                         <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -212,15 +212,15 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                         </div>
                     ))}
 
-                    {/* BOTÓN DERECHA: SIGUIENTE (Solo si hasMore es true) */}
+                    {/* BOTÓN SIGUIENTE */}
                     {hasMore && (
-                        <div className="min-w-[100px] flex items-center justify-center snap-start h-[280px]">
+                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start h-14 md:h-[280px]">
                             <button 
                                 onClick={handleNext}
                                 disabled={loading}
-                                className="flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-4 rounded-xl hover:bg-blue-50 h-[280px] w-full border border-transparent hover:border-blue-100"
+                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100"
                             >
-                                {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={32} />}
+                                {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={24} className="md:w-8 md:h-8" />}
                                 <span className="text-xs font-bold whitespace-nowrap">Ver más</span>
                             </button>
                         </div>
@@ -228,11 +228,11 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                 </div>
             </div>
             
-             {/* Skeleton Loading (Solo si estamos cargando y no hay datos visibles para la página actual, opcional) */}
+             {/* Skeleton Loading Responsivo */}
              {loading && readings.length === 0 && (
-                <div className="flex gap-4 overflow-hidden">
+                <div className="flex flex-col md:flex-row gap-4 overflow-hidden">
                     {[1,2,3].map(i => (
-                        <div key={i} className="min-w-[240px] h-[280px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
+                        <div key={i} className="w-full md:min-w-[240px] h-32 md:h-[280px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
                     ))}
                 </div>
             )}
