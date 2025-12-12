@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MeterReading, User } from '../types';
 import { getMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
-import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2 } from 'lucide-react';
+import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2, Fuel, TreePine } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -219,6 +219,8 @@ const MeterReadingsPage: React.FC = () => {
           case 'Agua': return <Droplets size={16} className="text-blue-500" />;
           case 'Gas': return <Flame size={16} className="text-orange-500" />;
           case 'Luz': return <Zap size={16} className="text-yellow-500" />;
+          case 'Leña': return <TreePine size={16} className="text-amber-700" />;
+          case 'Bencina Maquinas': return <Fuel size={16} className="text-red-500" />;
           default: return <Gauge size={16} className="text-slate-500" />;
       }
   };
@@ -235,7 +237,14 @@ const MeterReadingsPage: React.FC = () => {
 
   // --- ESTRUCTURA DE AGRUPAMIENTO ---
   const locations = ['Casa Grande', 'Casa Chica'];
-  const services = ['Agua', 'Gas', 'Luz'];
+  
+  // Definimos servicios por ubicación
+  const getServicesForLocation = (location: string) => {
+      if (location === 'Casa Grande') {
+          return ['Agua', 'Gas', 'Luz', 'Leña', 'Bencina Maquinas'];
+      }
+      return ['Agua', 'Gas', 'Luz'];
+  };
 
   const getFilteredReadings = (location: string, service: string) => {
       return readings.filter(r => {
@@ -271,6 +280,8 @@ const MeterReadingsPage: React.FC = () => {
                      <option value="Agua">Agua</option>
                      <option value="Gas">Gas</option>
                      <option value="Luz">Luz</option>
+                     <option value="Leña">Leña</option>
+                     <option value="Bencina Maquinas">Bencina Maquinas</option>
                  </select>
              </div>
             {canCreate && (
@@ -290,8 +301,11 @@ const MeterReadingsPage: React.FC = () => {
       ) : (
         <div className="space-y-12">
             {locations.map(location => {
+                const locationServices = getServicesForLocation(location);
                 // Verificar si esta ubicación tiene datos visibles (para no renderizar secciones vacías si se filtra)
-                const hasDataInLocation = services.some(srv => getFilteredReadings(location, srv).length > 0);
+                const hasDataInLocation = locationServices.some(srv => getFilteredReadings(location, srv).length > 0);
+                
+                // Si estamos filtrando y no hay datos, no mostramos el bloque
                 if (!hasDataInLocation) return null;
 
                 return (
@@ -302,8 +316,9 @@ const MeterReadingsPage: React.FC = () => {
                         </div>
 
                         <div className="space-y-8 pl-4 border-l-2 border-slate-100">
-                            {services.map(service => {
+                            {locationServices.map(service => {
                                 const items = getFilteredReadings(location, service);
+                                // Si no hay items para este servicio en esta ubicación, no renderizamos el bloque del servicio
                                 if (items.length === 0) return null;
 
                                 return (
@@ -473,7 +488,16 @@ const MeterReadingsPage: React.FC = () => {
                               <select 
                                   required disabled={isViewMode}
                                   value={editingReading.location}
-                                  onChange={e => setEditingReading({...editingReading, location: e.target.value as any})}
+                                  onChange={e => {
+                                      const newLoc = e.target.value as any;
+                                      // Si cambiamos de lugar, verificamos si el servicio actual es válido para el nuevo lugar
+                                      const validServices = getServicesForLocation(newLoc);
+                                      let newService = editingReading.serviceType;
+                                      if (!validServices.includes(newService as string)) {
+                                          newService = 'Agua'; // Reset a default si no es válido
+                                      }
+                                      setEditingReading({...editingReading, location: newLoc, serviceType: newService});
+                                  }}
                                   className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                               >
                                   <option value="Casa Grande">Casa Grande</option>
@@ -489,9 +513,9 @@ const MeterReadingsPage: React.FC = () => {
                                   onChange={e => setEditingReading({...editingReading, serviceType: e.target.value as any})}
                                   className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                               >
-                                  <option value="Agua">Agua</option>
-                                  <option value="Gas">Gas</option>
-                                  <option value="Luz">Luz</option>
+                                  {getServicesForLocation(editingReading.location || 'Casa Grande').map(srv => (
+                                      <option key={srv} value={srv}>{srv}</option>
+                                  ))}
                               </select>
                           </div>
                       </div>

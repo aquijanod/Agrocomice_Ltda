@@ -74,7 +74,7 @@ export interface MeterReading {
   userId: string; // Reportado Por
   date: string;   // YYYY-MM-DD
   location: 'Casa Grande' | 'Casa Chica';
-  serviceType: 'Agua' | 'Luz' | 'Gas';
+  serviceType: 'Agua' | 'Luz' | 'Gas' | 'Leña' | 'Bencina Maquinas';
   photos: ActivityAttachment[];
   createdAt?: string;
 }
