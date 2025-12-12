@@ -1,16 +1,253 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MeterReading, User } from '../types';
-import { getMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
-import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2, Fuel, TreePine } from 'lucide-react';
+import { getPaginatedMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
+import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2, Fuel, TreePine, ChevronRight, ChevronLeft, MessageSquare } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
+// --- SUB-COMPONENT: Service Section (Carrusel Paginado) ---
+interface ServiceSectionProps {
+    location: string;
+    service: string;
+    users: User[];
+    refreshTrigger: number;
+    canDelete: boolean;
+    onView: (r: MeterReading) => void;
+    onDelete: (id: string) => void;
+    onImageClick: (url: string) => void; // Nuevo prop para manejar click en imagen
+    filterActive: boolean;
+}
+
+const ServiceSection: React.FC<ServiceSectionProps> = ({ 
+    location, service, users, refreshTrigger, canDelete, onView, onDelete, onImageClick, filterActive 
+}) => {
+    const [readings, setReadings] = useState<MeterReading[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [page, setPage] = useState(0);
+    const PAGE_SIZE = 3; 
+    
+    // Ref para controlar el scroll del contenedor
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Si cambia el trigger, recargamos la página 0
+    useEffect(() => {
+        loadPage(0);
+    }, [refreshTrigger, location, service]);
+
+    const loadPage = async (pageIndex: number) => {
+        setLoading(true);
+        // Solicitamos PAGE_SIZE + 1 para saber si hay más páginas
+        const from = pageIndex * PAGE_SIZE;
+        const to = from + PAGE_SIZE; 
+        
+        try {
+            const data = await getPaginatedMeterReadings(location, service, from, to);
+            
+            // Si recibimos más de PAGE_SIZE, hay página siguiente
+            const hasNext = data.length > PAGE_SIZE;
+            // Solo mostramos los primeros PAGE_SIZE
+            const displayData = hasNext ? data.slice(0, PAGE_SIZE) : data;
+            
+            setReadings(displayData);
+            setHasMore(hasNext);
+            setPage(pageIndex);
+            
+            // Resetear scroll visualmente al inicio
+            if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTo({ left: 0, behavior: 'auto' });
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleNext = () => loadPage(page + 1);
+    const handlePrev = () => loadPage(page - 1);
+
+    const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Usuario desconocido';
+
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        return dateStr;
+    };
+
+    const getServiceIcon = (type?: string) => {
+        switch(type) {
+            case 'Agua': return <Droplets size={16} className="text-blue-500" />;
+            case 'Gas': return <Flame size={16} className="text-orange-500" />;
+            case 'Luz': return <Zap size={16} className="text-yellow-500" />;
+            case 'Leña': return <TreePine size={16} className="text-amber-700" />;
+            case 'Bencina Maquinas': return <Fuel size={16} className="text-red-500" />;
+            default: return <Gauge size={16} className="text-slate-500" />;
+        }
+    };
+
+    if (filterActive && readings.length === 0 && !loading) return null;
+    if (readings.length === 0 && !loading && page === 0) return null;
+
+    return (
+        <div className="mb-8 w-full min-w-0">
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2 px-1">
+                {getServiceIcon(service)} {service} 
+                {readings.length > 0 && (
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-normal border border-slate-200">
+                    Página {page + 1}
+                    </span>
+                )}
+            </h3>
+
+            {/* Carrusel Container */}
+            <div className="relative w-full min-w-0">
+                <div 
+                    ref={scrollContainerRef}
+                    className="flex gap-4 overflow-x-auto pb-4 px-1 snap-x snap-mandatory items-center w-full touch-pan-x"
+                    style={{ 
+                        scrollbarWidth: 'none', 
+                        msOverflowStyle: 'none', 
+                        overscrollBehaviorX: 'contain' 
+                    }}
+                >
+                    <style>{`
+                        div::-webkit-scrollbar { display: none; }
+                    `}</style>
+
+                    {/* BOTÓN IZQUIERDA: ANTERIOR (Solo si página > 0) */}
+                    {page > 0 && (
+                        <div className="min-w-[80px] flex items-center justify-center snap-start h-[280px]">
+                            <button 
+                                onClick={handlePrev}
+                                disabled={loading}
+                                className="flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-all p-2 rounded-xl hover:bg-blue-50 h-[200px] w-full border border-dashed border-slate-300 hover:border-blue-200 group"
+                                title="Página Anterior"
+                            >
+                                <div className="p-3 bg-slate-100 rounded-full group-hover:bg-blue-100 transition-colors">
+                                    <ChevronLeft size={20} />
+                                </div>
+                                <span className="text-[10px] font-bold text-center leading-tight uppercase tracking-wide">Anterior</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {readings.map(reading => (
+                        <div key={reading.id} className="min-w-[240px] w-[240px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-col h-[280px]">
+                            {/* Imagen - CLICK AQUI ABRE LA IMAGEN GRANDE */}
+                            <div 
+                                className="h-40 bg-slate-100 relative overflow-hidden cursor-pointer" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (reading.photos && reading.photos.length > 0) {
+                                        onImageClick(reading.photos[0].url);
+                                    } else {
+                                        onView(reading);
+                                    }
+                                }}
+                            >
+                                {reading.photos && reading.photos.length > 0 ? (
+                                    <>
+                                        <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
+                                        {reading.photos.length > 1 && (
+                                            <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
+                                                <ImageIcon size={10} /> +{reading.photos.length - 1}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                        <ImageIcon size={32} />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="p-3 flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
+                                        <Calendar size={12} /> {formatDate(reading.date)}
+                                    </div>
+                                    
+                                    {/* Comentario en la tarjeta */}
+                                    {reading.comments && (
+                                        <div className="text-[10px] text-slate-500 italic bg-slate-50 p-1.5 rounded border border-slate-100 mb-1 line-clamp-2" title={reading.comments}>
+                                            {reading.comments}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="border-t border-slate-100 pt-2 mt-auto flex justify-between items-center">
+                                    <div className="flex items-center gap-1.5 overflow-hidden">
+                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
+                                            {getUserName(reading.userId).charAt(0)}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="truncate text-xs font-medium text-slate-700 max-w-[90px]" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
+                                            <span className="text-[10px] text-slate-400">Reportador</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1">
+                                        {/* CLICK AQUI ABRE EL DETALLE (MODAL) */}
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onView(reading);
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Ver detalle"
+                                        >
+                                            <Eye size={16} />
+                                        </button>
+                                        {canDelete && (
+                                            <button onClick={(e) => { e.stopPropagation(); onDelete(reading.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* BOTÓN DERECHA: SIGUIENTE (Solo si hasMore es true) */}
+                    {hasMore && (
+                        <div className="min-w-[100px] flex items-center justify-center snap-start h-[280px]">
+                            <button 
+                                onClick={handleNext}
+                                disabled={loading}
+                                className="flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-4 rounded-xl hover:bg-blue-50 h-[280px] w-full border border-transparent hover:border-blue-100"
+                            >
+                                {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={32} />}
+                                <span className="text-xs font-bold whitespace-nowrap">Ver más</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+             {/* Skeleton Loading (Solo si estamos cargando y no hay datos visibles para la página actual, opcional) */}
+             {loading && readings.length === 0 && (
+                <div className="flex gap-4 overflow-hidden">
+                    {[1,2,3].map(i => (
+                        <div key={i} className="min-w-[240px] h-[280px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+// --- MAIN PAGE ---
+
 const MeterReadingsPage: React.FC = () => {
   const { permissions, user: currentUser } = useAuth();
-  const [readings, setReadings] = useState<MeterReading[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   // Modal de Edición/Creación
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
@@ -18,10 +255,8 @@ const MeterReadingsPage: React.FC = () => {
   
   // Estado de carga de imagen
   const [isCompressing, setIsCompressing] = useState(false);
-
-  // Modal de Previsualización de Imagen
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-
+  
   // Filtros
   const [serviceFilter, setServiceFilter] = useState<string>('Todos');
 
@@ -35,23 +270,12 @@ const MeterReadingsPage: React.FC = () => {
   const canDelete = permissions?.['Estado Medidores']?.delete;
 
   useEffect(() => {
-    loadData();
+    getUsers().then(setUsers);
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-        const [data, usrs] = await Promise.all([getMeterReadings(), getUsers()]);
-        // Asegurar ordenamiento DESC por fecha
-        const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setReadings(sortedData);
-        setUsers(usrs);
-    } catch (error) {
-        console.error("Error loading meter readings:", error);
-    } finally {
-        setLoading(false);
-    }
-  };
+  const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Usuario desconocido';
+
+  const triggerRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   const handleNew = () => {
     if (!canCreate) return;
@@ -66,17 +290,13 @@ const MeterReadingsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleView = (reading: MeterReading) => {
+  const handleViewReading = (reading: MeterReading) => {
     setEditingReading(JSON.parse(JSON.stringify(reading)));
     setIsViewMode(true);
     setIsModalOpen(true);
   };
 
-  // --- LÓGICA DE ELIMINACIÓN ---
-  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  const handleDeleteClick = (id: string) => {
     if (!canDelete) {
         setAlertState({isOpen: true, title: 'Acceso Denegado', message: 'No tiene permisos para eliminar registros.', type: 'error'});
         return;
@@ -86,7 +306,6 @@ const MeterReadingsPage: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!deleteId) return;
-
     try {
         await deleteMeterReading(deleteId);
         setAlertState({
@@ -95,15 +314,10 @@ const MeterReadingsPage: React.FC = () => {
             message: 'El registro de medidor ha sido eliminado correctamente.', 
             type: 'success'
         });
-        loadData();
+        triggerRefresh();
     } catch (error) {
         console.error("Error al eliminar medidor:", error);
-        setAlertState({
-            isOpen: true,
-            title: 'Error',
-            message: 'No se pudo eliminar el registro. Intente nuevamente.',
-            type: 'error'
-        });
+        setAlertState({isOpen: true, title: 'Error', message: 'No se pudo eliminar el registro.', type: 'error'});
     } finally {
         setDeleteId(null);
     }
@@ -115,7 +329,7 @@ const MeterReadingsPage: React.FC = () => {
         try {
             await saveMeterReading(editingReading as MeterReading);
             setIsModalOpen(false);
-            loadData();
+            triggerRefresh();
         } catch (error) {
             console.error("Error al guardar medidor:", error);
             setAlertState({isOpen: true, title: 'Error', message: 'Error al guardar el registro.', type: 'error'});
@@ -125,7 +339,6 @@ const MeterReadingsPage: React.FC = () => {
     }
   };
 
-  // --- FUNCIÓN DE COMPRESIÓN DE IMÁGENES ---
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -135,32 +348,20 @@ const MeterReadingsPage: React.FC = () => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 1200; // Reducir a un ancho razonable para pantallas
+                const MAX_WIDTH = 1200;
                 const MAX_HEIGHT = 1200;
                 let width = img.width;
                 let height = img.height;
-
-                // Calcular nuevas dimensiones manteniendo aspecto
                 if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
+                    if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
                 } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
+                    if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
                 }
-
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
-                
-                // Convertir a JPEG con calidad 0.7 (reduce drásticamente el tamaño vs PNG/Raw)
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                resolve(dataUrl);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
             };
             img.onerror = (error) => reject(error);
         };
@@ -175,28 +376,16 @@ const MeterReadingsPage: React.FC = () => {
           try {
               const processedPhotos = [];
               for (let i = 0; i < files.length; i++) {
-                  const file = files[i];
-                  // Comprimir imagen antes de guardar
-                  const compressedDataUrl = await compressImage(file);
+                  const compressedDataUrl = await compressImage(files[i]);
                   processedPhotos.push({
-                      name: file.name.replace(/\.[^/.]+$/, "") + ".jpg", // Forzar extensión jpg
+                      name: files[i].name.replace(/\.[^/.]+$/, "") + ".jpg",
                       type: 'image/jpeg',
                       url: compressedDataUrl
                   });
               }
-
-              setEditingReading(prev => ({
-                  ...prev,
-                  photos: [...(prev.photos || []), ...processedPhotos]
-              }));
+              setEditingReading(prev => ({ ...prev, photos: [...(prev.photos || []), ...processedPhotos] }));
           } catch (error) {
-              console.error("Error procesando imagen", error);
-              setAlertState({
-                  isOpen: true, 
-                  title: 'Error de Imagen', 
-                  message: 'No se pudo procesar la imagen de la cámara. Intente nuevamente.', 
-                  type: 'error'
-              });
+              setAlertState({ isOpen: true, title: 'Error', message: 'Error al procesar imagen.', type: 'error' });
           } finally {
               setIsCompressing(false);
           }
@@ -204,62 +393,17 @@ const MeterReadingsPage: React.FC = () => {
   };
 
   const removePhoto = (index: number) => {
-      setEditingReading(prev => ({
-          ...prev,
-          photos: prev.photos?.filter((_, i) => i !== index)
-      }));
+      setEditingReading(prev => ({...prev, photos: prev.photos?.filter((_, i) => i !== index)}));
   };
 
-  const getUserName = (id: string) => {
-      return users.find(u => u.id === id)?.name || 'Usuario desconocido';
-  };
-
-  const getServiceIcon = (type?: string) => {
-      switch(type) {
-          case 'Agua': return <Droplets size={16} className="text-blue-500" />;
-          case 'Gas': return <Flame size={16} className="text-orange-500" />;
-          case 'Luz': return <Zap size={16} className="text-yellow-500" />;
-          case 'Leña': return <TreePine size={16} className="text-amber-700" />;
-          case 'Bencina Maquinas': return <Fuel size={16} className="text-red-500" />;
-          default: return <Gauge size={16} className="text-slate-500" />;
-      }
-  };
-  
-  // Helper to format date dd-mm-yyyy
-  const formatDate = (dateStr: string) => {
-      if (!dateStr) return '';
-      const parts = dateStr.split('-');
-      if (parts.length === 3) {
-          return `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      return dateStr;
-  };
-
-  // --- ESTRUCTURA DE AGRUPAMIENTO ---
-  const locations = ['Casa Grande', 'Casa Chica'];
-  
-  // Definimos servicios por ubicación
+  const getLocations = () => ['Casa Grande', 'Casa Chica'];
   const getServicesForLocation = (location: string) => {
-      if (location === 'Casa Grande') {
-          return ['Agua', 'Gas', 'Luz', 'Leña', 'Bencina Maquinas'];
-      }
+      if (location === 'Casa Grande') return ['Agua', 'Gas', 'Luz', 'Leña', 'Bencina Maquinas'];
       return ['Agua', 'Gas', 'Luz'];
   };
 
-  const getFilteredReadings = (location: string, service: string) => {
-      return readings.filter(r => {
-          const locMatch = r.location === location;
-          const srvMatch = r.serviceType === service;
-          
-          // Si el filtro global está activo, respetarlo
-          if (serviceFilter !== 'Todos' && r.serviceType !== serviceFilter) return false;
-
-          return locMatch && srvMatch;
-      });
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
@@ -281,7 +425,7 @@ const MeterReadingsPage: React.FC = () => {
                      <option value="Gas">Gas</option>
                      <option value="Luz">Luz</option>
                      <option value="Leña">Leña</option>
-                     <option value="Bencina Maquinas">Bencina Maquinas</option>
+                     <option value="Bencina Maquinas">Bencina</option>
                  </select>
              </div>
             {canCreate && (
@@ -292,132 +436,51 @@ const MeterReadingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* --- VISTA AGRUPADA --- */}
-      {loading ? (
-        <div className="py-20 text-center text-slate-400 flex flex-col items-center">
-            <Loader2 size={40} className="animate-spin mb-4 text-blue-600" />
-            <p>Cargando registros de medidores...</p>
-        </div>
-      ) : (
-        <div className="space-y-12">
-            {locations.map(location => {
-                const locationServices = getServicesForLocation(location);
-                // Verificar si esta ubicación tiene datos visibles (para no renderizar secciones vacías si se filtra)
-                const hasDataInLocation = locationServices.some(srv => getFilteredReadings(location, srv).length > 0);
-                
-                // Si estamos filtrando y no hay datos, no mostramos el bloque
-                if (!hasDataInLocation) return null;
+      <div className="space-y-12">
+            {getLocations().map(location => {
+                const availableServices = getServicesForLocation(location);
+                const servicesToShow = serviceFilter === 'Todos' 
+                    ? availableServices 
+                    : availableServices.filter(s => s === serviceFilter);
+
+                if (servicesToShow.length === 0) return null;
 
                 return (
-                    <div key={location} className="animate-fade-in">
+                    <div key={location} className="animate-fade-in w-full min-w-0">
                         <div className="flex items-center gap-3 mb-6 pb-2 border-b border-slate-300">
                             <MapPin className="text-slate-400" size={24} />
                             <h2 className="text-2xl font-bold text-slate-800">{location}</h2>
                         </div>
 
-                        <div className="space-y-8 pl-4 border-l-2 border-slate-100">
-                            {locationServices.map(service => {
-                                const items = getFilteredReadings(location, service);
-                                // Si no hay items para este servicio en esta ubicación, no renderizamos el bloque del servicio
-                                if (items.length === 0) return null;
-
-                                return (
-                                    <div key={service}>
-                                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                            {getServiceIcon(service)} {service} 
-                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-normal border border-slate-200">{items.length}</span>
-                                        </h3>
-                                        
-                                        {/* --- GRID DE TARJETAS --- */}
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                            {items.map(reading => (
-                                                <div key={reading.id} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
-                                                    
-                                                    {/* Imagen (Click para Preview) */}
-                                                    <div className="h-32 bg-slate-100 relative overflow-hidden cursor-pointer" onClick={() => reading.photos?.[0] && setPreviewImage(reading.photos[0].url)}>
-                                                        {reading.photos && reading.photos.length > 0 ? (
-                                                            <>
-                                                                <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                                                    <ZoomIn className="text-white drop-shadow-md" size={24}/>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                                <ImageIcon size={32} />
-                                                            </div>
-                                                        )}
-                                                        
-                                                        {/* Badge de Cantidad de Fotos */}
-                                                        {reading.photos && reading.photos.length > 1 && (
-                                                            <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
-                                                                <ImageIcon size={10} /> +{reading.photos.length - 1}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Info Card */}
-                                                    <div className="p-3 flex-1 flex flex-col justify-between">
-                                                        <div>
-                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                                                <Calendar size={12} /> {formatDate(reading.date)}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
-                                                            <div className="flex items-center gap-1.5 overflow-hidden">
-                                                                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-500 shrink-0">
-                                                                    {getUserName(reading.userId).charAt(0)}
-                                                                </div>
-                                                                <span className="truncate text-xs text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
-                                                            </div>
-                                                            
-                                                            <div className="flex items-center gap-1">
-                                                                <button onClick={() => handleView(reading)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                                                    <Eye size={16} />
-                                                                </button>
-                                                                {canDelete && (
-                                                                    <button 
-                                                                        onClick={(e) => handleDeleteClick(reading.id, e)} 
-                                                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                    >
-                                                                        <Trash2 size={16} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="pl-0 md:pl-4 border-l-0 md:border-l-2 border-slate-100 w-full min-w-0">
+                            {servicesToShow.map(service => (
+                                <ServiceSection 
+                                    key={`${location}-${service}`}
+                                    location={location}
+                                    service={service}
+                                    users={users}
+                                    refreshTrigger={refreshTrigger}
+                                    canDelete={!!canDelete}
+                                    onView={handleViewReading}
+                                    onDelete={handleDeleteClick}
+                                    onImageClick={(url) => setPreviewImage(url)}
+                                    filterActive={serviceFilter !== 'Todos'}
+                                />
+                            ))}
                         </div>
                     </div>
                 );
             })}
-
-            {readings.length === 0 && (
-                <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                    <Gauge size={48} className="mx-auto mb-3 opacity-30" />
-                    <p>No se encontraron registros de medidores.</p>
-                </div>
-            )}
-        </div>
-      )}
-
-      {/* --- MODALS --- */}
+      </div>
 
       <ConfirmModal 
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={confirmDelete}
         title="¿Eliminar Registro?"
-        message="¿Está seguro que desea eliminar este registro de medidor? Esta acción no se puede deshacer."
+        message="¿Está seguro que desea eliminar este registro? Esta acción no se puede deshacer."
         confirmText="Eliminar"
       />
-
       <AlertModal
         isOpen={alertState.isOpen}
         onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
@@ -426,58 +489,33 @@ const MeterReadingsPage: React.FC = () => {
         type={alertState.type}
       />
 
-      {/* Image Preview Modal (Lightbox) */}
+      {/* Lightbox - Imagen Grande - Z Index alto para sobreponerse al modal si se abre desde ahí */}
       {previewImage && (
-          <div 
-            className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
-            onClick={() => setPreviewImage(null)}
-          >
-              <button 
-                onClick={() => setPreviewImage(null)}
-                className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
-              >
-                  <X size={32} />
-              </button>
-              <img 
-                src={previewImage} 
-                alt="Vista Previa" 
-                className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl"
-                onClick={(e) => e.stopPropagation()} 
-              />
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setPreviewImage(null)}>
+              <button onClick={() => setPreviewImage(null)} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"><X size={32} /></button>
+              <img src={previewImage} alt="Vista Previa" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
           </div>
       )}
 
-      {/* Edit/Create Modal */}
+      {/* Modal Detalle/Edición */}
       {isModalOpen && (
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-fade-in">
                   <div className="flex justify-between items-center p-6 border-b border-slate-100">
-                      <h2 className="text-xl font-bold text-slate-800">
-                          {isViewMode ? 'Detalle Registro' : 'Nuevo Registro de Medidor'}
-                      </h2>
-                      <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                          <X size={24} />
-                      </button>
+                      <h2 className="text-xl font-bold text-slate-800">{isViewMode ? 'Detalle Registro' : 'Nuevo Registro'}</h2>
+                      <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                   </div>
 
                   <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
-                      
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                              <input 
-                                  type="date" required disabled={isViewMode}
-                                  value={editingReading.date}
-                                  onChange={e => setEditingReading({...editingReading, date: e.target.value})}
-                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
-                              />
+                              <input type="date" required disabled={isViewMode} value={editingReading.date} onChange={e => setEditingReading({...editingReading, date: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"/>
                           </div>
-
                            <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Reportado Por</label>
                               <div className="w-full p-2 border border-slate-200 bg-slate-50 rounded-lg text-slate-600 flex items-center gap-2">
-                                  <UserIcon size={16} />
-                                  <span className="text-sm truncate">{getUserName(editingReading.userId!)}</span>
+                                  <UserIcon size={16} /><span className="text-sm truncate">{getUserName(editingReading.userId!)}</span>
                               </div>
                           </div>
                       </div>
@@ -485,103 +523,63 @@ const MeterReadingsPage: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Lugar</label>
-                              <select 
-                                  required disabled={isViewMode}
-                                  value={editingReading.location}
-                                  onChange={e => {
+                              <select required disabled={isViewMode} value={editingReading.location} onChange={e => {
                                       const newLoc = e.target.value as any;
-                                      // Si cambiamos de lugar, verificamos si el servicio actual es válido para el nuevo lugar
                                       const validServices = getServicesForLocation(newLoc);
                                       let newService = editingReading.serviceType;
-                                      if (!validServices.includes(newService as string)) {
-                                          newService = 'Agua'; // Reset a default si no es válido
-                                      }
+                                      if (!validServices.includes(newService as string)) newService = 'Agua';
                                       setEditingReading({...editingReading, location: newLoc, serviceType: newService});
-                                  }}
-                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
-                              >
+                                  }} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500">
                                   <option value="Casa Grande">Casa Grande</option>
                                   <option value="Casa Chica">Casa Chica</option>
                               </select>
                           </div>
-
                            <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Servicio</label>
-                              <select 
-                                  required disabled={isViewMode}
-                                  value={editingReading.serviceType}
-                                  onChange={e => setEditingReading({...editingReading, serviceType: e.target.value as any})}
-                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
-                              >
-                                  {getServicesForLocation(editingReading.location || 'Casa Grande').map(srv => (
-                                      <option key={srv} value={srv}>{srv}</option>
-                                  ))}
+                              <select required disabled={isViewMode} value={editingReading.serviceType} onChange={e => setEditingReading({...editingReading, serviceType: e.target.value as any})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500">
+                                  {getServicesForLocation(editingReading.location || 'Casa Grande').map(srv => <option key={srv} value={srv}>{srv}</option>)}
                               </select>
                           </div>
                       </div>
 
                       <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-2">Fotografías del Medidor</label>
+                           <label className="block text-sm font-medium text-slate-700 mb-1">Nota / Comentario</label>
+                           <textarea
+                               disabled={isViewMode}
+                               value={editingReading.comments || ''}
+                               onChange={e => setEditingReading({...editingReading, comments: e.target.value})}
+                               className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 text-sm"
+                               placeholder="Observaciones adicionales..."
+                               rows={2}
+                           />
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">Fotografías</label>
                           {!isViewMode && (
                             <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors mb-4 relative">
-                                {isCompressing && (
-                                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                                        <div className="flex flex-col items-center">
-                                            <Loader2 className="animate-spin text-blue-600" size={32} />
-                                            <span className="text-xs text-blue-600 font-bold mt-2">Optimizando imagen...</span>
-                                        </div>
-                                    </div>
-                                )}
-                                <input 
-                                    type="file" multiple accept="image/*"
-                                    capture="environment" 
-                                    id="file-upload" 
-                                    className="hidden" 
-                                    onChange={handleFileUpload}
-                                />
+                                {isCompressing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}
+                                <input type="file" multiple accept="image/*" capture="environment" id="file-upload" className="hidden" onChange={handleFileUpload}/>
                                 <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
                                     <Upload className="text-slate-400" size={24} />
                                     <span className="text-blue-600 font-medium">Subir Foto o Tomar Cámara</span>
-                                    <span className="text-xs text-slate-400">Se optimizará automáticamente</span>
                                 </label>
                             </div>
                           )}
                           <div className="grid grid-cols-3 gap-2">
                                 {editingReading.photos?.map((photo, idx) => (
                                     <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group">
-                                        <img 
-                                            src={photo.url} 
-                                            alt="Evidencia" 
-                                            className="w-full h-full object-cover cursor-pointer" 
-                                            onClick={() => setPreviewImage(photo.url)}
-                                        />
-                                        {!isViewMode && (
-                                            <button 
-                                                type="button" 
-                                                onClick={() => removePhoto(idx)}
-                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        )}
+                                        <img src={photo.url} alt="Evidencia" className="w-full h-full object-cover cursor-pointer" onClick={() => setPreviewImage(photo.url)}/>
+                                        {!isViewMode && <button type="button" onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>}
                                     </div>
                                 ))}
                           </div>
-                          {editingReading.photos?.length === 0 && isViewMode && (
-                              <p className="text-center text-sm text-slate-400 italic">No hay fotos adjuntas.</p>
-                          )}
                       </div>
                   </form>
 
                   <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
-                      <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
-                          {isViewMode ? 'Cerrar' : 'Cancelar'}
-                      </button>
-                      {!isViewMode && (
-                        <button type="button" onClick={(e) => handleSave(e as any)} disabled={isCompressing} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50">
-                            {isCompressing ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Guardar
-                        </button>
-                      )}
+                      <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">{isViewMode ? 'Cerrar' : 'Cancelar'}</button>
+                      {!isViewMode && <button type="button" onClick={(e) => handleSave(e as any)} disabled={isCompressing} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50">{isCompressing ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Guardar</button>}
                   </div>
               </div>
           </div>

@@ -313,6 +313,35 @@ export const getMeterReadings = async (): Promise<MeterReading[]> => {
         date: r.date,
         location: r.location,
         serviceType: r.service_type,
+        comments: r.comments || '',
+        photos: r.photos || []
+    }));
+};
+
+// NUEVA FUNCIÓN PAGINADA
+export const getPaginatedMeterReadings = async (
+    location: string, 
+    serviceType: string, 
+    from: number, 
+    to: number
+): Promise<MeterReading[]> => {
+    const { data, error } = await supabase
+        .from('meter_readings')
+        .select('*')
+        .eq('location', location)
+        .eq('service_type', serviceType)
+        .order('date', { ascending: false })
+        .range(from, to);
+
+    if (error) throw error;
+
+    return data.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        date: r.date,
+        location: r.location,
+        serviceType: r.service_type,
+        comments: r.comments || '',
         photos: r.photos || []
     }));
 };
@@ -323,6 +352,7 @@ export const saveMeterReading = async (reading: MeterReading): Promise<MeterRead
         date: reading.date,
         location: reading.location,
         service_type: reading.serviceType,
+        comments: reading.comments,
         photos: reading.photos
     };
 

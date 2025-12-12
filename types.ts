@@ -75,6 +75,7 @@ export interface MeterReading {
   date: string;   // YYYY-MM-DD
   location: 'Casa Grande' | 'Casa Chica';
   serviceType: 'Agua' | 'Luz' | 'Gas' | 'Leña' | 'Bencina Maquinas';
+  comments?: string; // Nuevo campo Nota / Comentario
   photos: ActivityAttachment[];
   createdAt?: string;
 }
