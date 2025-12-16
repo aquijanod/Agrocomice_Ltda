@@ -75,7 +75,8 @@ export const resolveUserPermissions = async (roleName: string): Promise<Permissi
 export const getDashboardStats = async () => {
     // Ejecutar conteos en paralelo directamente en la BD sin descargar los datos (Head request)
     const [workers, pending, inProgress, completed] = await Promise.all([
-        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'Trabajador'),
+        // Se agrega filtro .eq('active', true) para contar solo trabajadores activos
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'Trabajador').eq('active', true),
         supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'Pendiente'),
         supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'En Progreso'),
         supabase.from('activities').select('id', { count: 'exact', head: true }).eq('status', 'Completada')

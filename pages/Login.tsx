@@ -52,9 +52,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Correo Electrónico</label>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">Correo Electrónico</label>
               <input 
+                id="email"
+                name="email"
                 type="email" 
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -64,10 +67,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Contraseña</label>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">Contraseña</label>
               <div className="relative">
                 <input 
+                  id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"} 
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
