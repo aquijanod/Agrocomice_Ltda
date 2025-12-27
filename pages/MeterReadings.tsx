@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MeterReading, User } from '../types';
 import { getPaginatedMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
-import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, Loader2, Fuel, TreePine, ChevronRight, ChevronLeft, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, ZoomOut, Maximize, Loader2, Fuel, TreePine, ChevronRight, ChevronLeft, RotateCcw } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -14,7 +14,7 @@ interface ServiceSectionProps {
     canDelete: boolean;
     onView: (r: MeterReading) => void;
     onDelete: (id: string) => void;
-    onImageClick: (url: string) => void; // Nuevo prop para manejar click en imagen
+    onImageClick: (url: string) => void;
     filterActive: boolean;
 }
 
@@ -27,33 +27,26 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
     const [page, setPage] = useState(0);
     const PAGE_SIZE = 3; 
     
-    // Ref para controlar el scroll del contenedor
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Si cambia el trigger, recargamos la página 0
     useEffect(() => {
         loadPage(0);
     }, [refreshTrigger, location, service]);
 
     const loadPage = async (pageIndex: number) => {
         setLoading(true);
-        // Solicitamos PAGE_SIZE + 1 para saber si hay más páginas
         const from = pageIndex * PAGE_SIZE;
         const to = from + PAGE_SIZE; 
         
         try {
             const data = await getPaginatedMeterReadings(location, service, from, to);
-            
-            // Si recibimos más de PAGE_SIZE, hay página siguiente
             const hasNext = data.length > PAGE_SIZE;
-            // Solo mostramos los primeros PAGE_SIZE
             const displayData = hasNext ? data.slice(0, PAGE_SIZE) : data;
             
             setReadings(displayData);
             setHasMore(hasNext);
             setPage(pageIndex);
             
-            // Resetear scroll visualmente al inicio en desktop
             if (scrollContainerRef.current) {
                 scrollContainerRef.current.scrollTo({ left: 0, behavior: 'auto' });
             }
@@ -101,21 +94,15 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                 )}
             </h3>
 
-            {/* Container Responsivo: Flex Column en móvil, Flex Row con scroll en Desktop */}
             <div className="relative w-full min-w-0">
                 <div 
                     ref={scrollContainerRef}
                     className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4 px-1 md:snap-x md:snap-mandatory items-center w-full touch-pan-x"
-                    style={{ 
-                        scrollbarWidth: 'none', 
-                        msOverflowStyle: 'none', 
-                    }}
                 >
                     <style>{`
                         div::-webkit-scrollbar { display: none; }
                     `}</style>
 
-                    {/* BOTÓN ANTERIOR (Estilo unificado) */}
                     {page > 0 && (
                         <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
                             <button 
@@ -131,10 +118,7 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                     )}
 
                     {readings.map(reading => (
-                        // Card Responsiva: Horizontal en Móvil, Vertical en Desktop. Altura autoajustable pero con mínimo.
                         <div key={reading.id} className="w-full md:min-w-[260px] md:w-[260px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-row md:flex-col min-h-[160px] md:min-h-[320px] h-auto">
-                            
-                            {/* Imagen - Izquierda en móvil, Arriba en Desktop */}
                             <div 
                                 className="w-32 md:w-full min-h-full md:min-h-0 md:h-48 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
                                 onClick={(e) => {
@@ -149,6 +133,9 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                                 {reading.photos && reading.photos.length > 0 ? (
                                     <>
                                         <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            <ZoomIn size={24} className="text-white drop-shadow-md" />
+                                        </div>
                                         {reading.photos.length > 1 && (
                                             <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
                                                 <ImageIcon size={10} /> +{reading.photos.length - 1}
@@ -162,22 +149,17 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                                 )}
                             </div>
 
-                            {/* Info Container */}
                             <div className="p-3 flex-1 flex flex-col min-w-0">
-                                
-                                {/* 1. FECHA (Arriba) */}
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
                                     <Calendar size={14} className="text-blue-500" /> {formatDate(reading.date)}
                                 </div>
                                 
-                                {/* 2. COMENTARIO (Medio) - Sin comillas decorativas */}
                                 {reading.comments && (
-                                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 leading-snug" title={reading.comments}>
+                                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 leading-snug line-clamp-2" title={reading.comments}>
                                         {reading.comments}
                                     </div>
                                 )}
 
-                                {/* 3. REPORTADO POR (Debajo del comentario) */}
                                 <div className="flex items-center gap-2 mb-2">
                                     <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
                                         {getUserName(reading.userId).charAt(0)}
@@ -188,7 +170,6 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                                     </div>
                                 </div>
                                 
-                                {/* 4. ACCIONES (Fondo Abajo) */}
                                 <div className="mt-auto pt-2 border-t border-slate-100 flex justify-end items-center gap-2">
                                     <button 
                                         onClick={(e) => {
@@ -209,7 +190,6 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                         </div>
                     ))}
 
-                    {/* BOTÓN SIGUIENTE (Estilo unificado) */}
                     {hasMore && (
                         <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
                             <button 
@@ -225,7 +205,6 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                 </div>
             </div>
             
-             {/* Skeleton Loading Responsivo */}
              {loading && readings.length === 0 && (
                 <div className="flex flex-col md:flex-row gap-4 overflow-hidden">
                     {[1,2,3].map(i => (
@@ -254,6 +233,13 @@ const MeterReadingsPage: React.FC = () => {
   const [isCompressing, setIsCompressing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
+  // Zoom y Pan States para el visualizador
+  const [zoomScale, setZoomScale] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const imgRef = useRef<HTMLImageElement>(null);
+
   // Filtros
   const [serviceFilter, setServiceFilter] = useState<string>('Todos');
 
@@ -399,6 +385,43 @@ const MeterReadingsPage: React.FC = () => {
       return ['Agua', 'Gas', 'Luz'];
   };
 
+  // ZOOM HANDLERS
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!previewImage) return;
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newScale = Math.min(Math.max(1, zoomScale + delta), 4);
+    setZoomScale(newScale);
+    if (newScale === 1) setDragPos({ x: 0, y: 0 });
+  };
+
+  const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.5, 4));
+  const handleZoomOut = () => {
+    const next = Math.max(zoomScale - 0.5, 1);
+    setZoomScale(next);
+    if (next === 1) setDragPos({ x: 0, y: 0 });
+  };
+  const resetZoom = () => { setZoomScale(1); setDragPos({ x: 0, y: 0 }); };
+
+  // PANNING HANDLERS
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomScale <= 1) return;
+    setIsDragging(true);
+    setStartPos({ x: e.clientX - dragPos.x, y: e.clientY - dragPos.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || zoomScale <= 1) return;
+    setDragPos({ x: e.clientX - startPos.x, y: e.clientY - startPos.y });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  // Close Visualizer
+  const closeVisualizer = () => {
+    setPreviewImage(null);
+    resetZoom();
+  };
+
   return (
     <div className="space-y-6 w-full min-w-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -486,11 +509,68 @@ const MeterReadingsPage: React.FC = () => {
         type={alertState.type}
       />
 
-      {/* Lightbox - Imagen Grande - Z Index alto para sobreponerse al modal si se abre desde ahí */}
+      {/* LIGHTBOX AVANZADO CON ZOOM Y PANNING */}
       {previewImage && (
-          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setPreviewImage(null)}>
-              <button onClick={() => setPreviewImage(null)} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"><X size={32} /></button>
-              <img src={previewImage} alt="Vista Previa" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          <div 
+            className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 animate-fade-in select-none"
+            onWheel={handleWheel}
+          >
+              {/* Controles de Cabecera */}
+              <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-[210] bg-gradient-to-b from-black/50 to-transparent">
+                  <div className="flex items-center gap-3">
+                      <div className="bg-blue-600 text-white p-2 rounded-lg">
+                         <Gauge size={20} />
+                      </div>
+                      <div className="text-white">
+                          <p className="text-sm font-bold">Detalle de Medidor</p>
+                          <p className="text-[10px] text-slate-300 uppercase tracking-widest">Escala: {zoomScale.toFixed(1)}x</p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={closeVisualizer} 
+                    className="text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <X size={32} />
+                  </button>
+              </div>
+
+              {/* Controles Flotantes de Zoom */}
+              <div className="absolute bottom-10 flex items-center gap-4 bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-2xl z-[210] shadow-2xl">
+                  <button onClick={handleZoomOut} className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors" title="Alejar"><ZoomOut size={20}/></button>
+                  <div className="w-px h-6 bg-white/20"></div>
+                  <button onClick={resetZoom} className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2" title="Restablecer">
+                    <RotateCcw size={20}/>
+                    <span className="text-xs font-bold">{Math.round(zoomScale * 100)}%</span>
+                  </button>
+                  <div className="w-px h-6 bg-white/20"></div>
+                  <button onClick={handleZoomIn} className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors" title="Acercar"><ZoomIn size={20}/></button>
+              </div>
+
+              {/* Área de Visualización con Pan & Zoom */}
+              <div 
+                className={`relative w-full h-full overflow-hidden flex items-center justify-center ${zoomScale > 1 ? 'cursor-grab' : 'cursor-default'} ${isDragging ? 'cursor-grabbing' : ''}`}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+              >
+                  <img 
+                    ref={imgRef}
+                    src={previewImage} 
+                    alt="Vista Previa Medidor" 
+                    className="max-w-full max-h-[90vh] object-contain transition-transform duration-200 ease-out will-change-transform"
+                    style={{ 
+                        transform: `translate(${dragPos.x}px, ${dragPos.y}px) scale(${zoomScale})`,
+                        imageRendering: zoomScale > 2 ? 'pixelated' : 'auto' // Ayuda a ver números borrosos en zoom alto
+                    }}
+                    draggable={false}
+                  />
+              </div>
+
+              {/* Tips de navegación */}
+              <div className="absolute top-20 text-white/40 text-[10px] font-bold uppercase tracking-widest pointer-events-none">
+                  {zoomScale > 1 ? 'Arrastra para mover • Usa la rueda para zoom' : 'Haz zoom para ver detalles'}
+              </div>
           </div>
       )}
 
@@ -566,7 +646,15 @@ const MeterReadingsPage: React.FC = () => {
                           <div className="grid grid-cols-3 gap-2">
                                 {editingReading.photos?.map((photo, idx) => (
                                     <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group">
-                                        <img src={photo.url} alt="Evidencia" className="w-full h-full object-cover cursor-pointer" onClick={() => setPreviewImage(photo.url)}/>
+                                        <img 
+                                          src={photo.url} 
+                                          alt="Evidencia" 
+                                          className="w-full h-full object-cover cursor-pointer" 
+                                          onClick={() => setPreviewImage(photo.url)}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                                            <ZoomIn className="text-white" size={20} />
+                                        </div>
                                         {!isViewMode && <button type="button" onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>}
                                     </div>
                                 ))}
