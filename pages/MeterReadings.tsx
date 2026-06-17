@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MeterReading, User } from '../types';
 import { getPaginatedMeterReadings, saveMeterReading, deleteMeterReading, getUsers } from '../services/dataService';
-import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, ZoomOut, Maximize, Loader2, Fuel, TreePine, ChevronRight, ChevronLeft, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, X, Save, Eye, Gauge, Droplets, Zap, Flame, Calendar, MapPin, User as UserIcon, Upload, ImageIcon, ZoomIn, ZoomOut, Maximize, Loader2, Fuel, TreePine, ChevronRight, ChevronLeft, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { ConfirmModal, AlertModal } from '../components/Modals';
 
@@ -243,6 +243,12 @@ const MeterReadingsPage: React.FC = () => {
   // Filtros
   const [serviceFilter, setServiceFilter] = useState<string>('Todos');
 
+  // Secciones colapsables de casas (por defecto comprimidas)
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    'Casa Grande': false,
+    'Casa Chica': false
+  });
+
   // Modals Alertas
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{isOpen: boolean, title: string, message: string, type: 'success'|'error'|'info'}>({
@@ -433,6 +439,30 @@ const MeterReadingsPage: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-3">
+             <button 
+                onClick={() => {
+                   const anyCollapsed = !expandedSections['Casa Grande'] || !expandedSections['Casa Chica'];
+                   setExpandedSections({
+                      'Casa Grande': anyCollapsed,
+                      'Casa Chica': anyCollapsed
+                   });
+                }}
+                className="bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 text-sm font-semibold transition-colors"
+                title={(!expandedSections['Casa Grande'] || !expandedSections['Casa Chica']) ? "Expandir ambas casas" : "Comprimir ambas casas"}
+             >
+                {(!expandedSections['Casa Grande'] || !expandedSections['Casa Chica']) ? (
+                     <>
+                         <ChevronDown size={18} className="text-blue-500" />
+                         <span>Expandir Ambos</span>
+                     </>
+                ) : (
+                     <>
+                         <ChevronUp size={18} className="text-blue-500" />
+                         <span>Comprimir Ambos</span>
+                     </>
+                )}
+             </button>
+
              <div className="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
                  <span className="text-sm font-medium text-slate-600">Filtrar:</span>
                  <select 
@@ -465,29 +495,51 @@ const MeterReadingsPage: React.FC = () => {
 
                 if (servicesToShow.length === 0) return null;
 
+                const isExpanded = expandedSections[location];
+
                 return (
                     <div key={location} className="animate-fade-in w-full min-w-0">
-                        <div className="flex items-center gap-3 mb-6 pb-2 border-b border-slate-300">
-                            <MapPin className="text-slate-400" size={24} />
-                            <h2 className="text-2xl font-bold text-slate-800">{location}</h2>
+                        <div 
+                            onClick={() => setExpandedSections(prev => ({ ...prev, [location]: !prev[location] }))}
+                            className="flex items-center justify-between gap-3 mb-6 pb-2 border-b border-slate-300 cursor-pointer select-none group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <MapPin className="text-slate-400 group-hover:text-blue-500 transition-colors" size={24} />
+                                <h2 className="text-2xl font-bold text-slate-800 group-hover:text-slate-900 transition-colors">{location}</h2>
+                            </div>
+                            <div className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                                {isExpanded ? (
+                                    <>
+                                         <span>Comprimir</span>
+                                         <ChevronUp size={16} />
+                                    </>
+                                ) : (
+                                     <>
+                                         <span>Expandir</span>
+                                         <ChevronDown size={16} />
+                                     </>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="pl-0 md:pl-4 border-l-0 md:border-l-2 border-slate-100 w-full min-w-0">
-                            {servicesToShow.map(service => (
-                                <ServiceSection 
-                                    key={`${location}-${service}`}
-                                    location={location}
-                                    service={service}
-                                    users={users}
-                                    refreshTrigger={refreshTrigger}
-                                    canDelete={!!canDelete}
-                                    onView={handleViewReading}
-                                    onDelete={handleDeleteClick}
-                                    onImageClick={(url) => setPreviewImage(url)}
-                                    filterActive={serviceFilter !== 'Todos'}
-                                />
-                            ))}
-                        </div>
+                        {isExpanded && (
+                            <div className="pl-0 md:pl-4 border-l-0 md:border-l-2 border-slate-100 w-full min-w-0 animate-fade-in">
+                                {servicesToShow.map(service => (
+                                    <ServiceSection 
+                                        key={`${location}-${service}`}
+                                        location={location}
+                                        service={service}
+                                        users={users}
+                                        refreshTrigger={refreshTrigger}
+                                        canDelete={!!canDelete}
+                                        onView={handleViewReading}
+                                        onDelete={handleDeleteClick}
+                                        onImageClick={(url) => setPreviewImage(url)}
+                                        filterActive={serviceFilter !== 'Todos'}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             })}
