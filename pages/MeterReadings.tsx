@@ -111,7 +111,7 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
                                 className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group"
                                 title="Página Anterior"
                             >
-                                <ChevronLeft size={24} className="md:w-8 md:h-8" />
+                                {loading ? <Loader2 className="animate-spin" /> : <ChevronLeft size={24} className="md:w-8 md:h-8" />}
                                 <span className="text-xs font-bold whitespace-nowrap">ANTERIOR</span>
                             </button>
                         </div>
