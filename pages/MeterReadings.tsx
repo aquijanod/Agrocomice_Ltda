@@ -21,10 +21,8 @@ interface ServiceSectionProps {
 const ServiceSection: React.FC<ServiceSectionProps> = ({ 
     location, service, users, refreshTrigger, canDelete, onView, onDelete, onImageClick, filterActive 
 }) => {
-    const [readings, setReadings] = useState<MeterReading[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [hasMore, setHasMore] = useState(false);
-    const [page, setPage] = useState(0);
+    const [isCollapsed, setIsCollapsed] = useState(true);
+    
     const PAGE_SIZE = 3; 
     
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -32,6 +30,13 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
     useEffect(() => {
         loadPage(0);
     }, [refreshTrigger, location, service]);
+
+    // Auto-expand if service filter matches specifically, or when filters are active
+    useEffect(() => {
+        if (filterActive) {
+            setIsCollapsed(false);
+        }
+    }, [filterActive]);
 
     const loadPage = async (pageIndex: number) => {
         setLoading(true);
@@ -71,7 +76,7 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
 
     const getServiceIcon = (type?: string) => {
         switch(type) {
-            case 'Agua': return <Droplets size={16} className="text-blue-500" />;
+            case 'Agua': return <Droplets size={16} className="text-blue-500 animate-pulse" />;
             case 'Gas': return <Flame size={16} className="text-orange-500" />;
             case 'Luz': return <Zap size={16} className="text-yellow-500" />;
             case 'Leña': return <TreePine size={16} className="text-amber-700" />;
@@ -84,132 +89,168 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
     if (readings.length === 0 && !loading && page === 0) return null;
 
     return (
-        <div className="mb-8 w-full min-w-0">
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2 px-1">
-                {getServiceIcon(service)} {service} 
-                {readings.length > 0 && (
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-normal border border-slate-200">
-                    Página {page + 1}
+        <div className="mb-6 w-full min-w-0 bg-slate-50/60 hover:bg-slate-50 rounded-xl p-4 border border-slate-200/50 transition-all duration-300 shadow-xs">
+            {/* Header interactivo de Sección del Medidor */}
+            <div 
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="flex items-center justify-between cursor-pointer select-none group/service py-1"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg border border-slate-150 shadow-xs group-hover/service:border-blue-200 transition-colors">
+                        {getServiceIcon(service)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-slate-700 uppercase tracking-wide group-hover/service:text-blue-600 transition-colors">
+                            Medidor de {service}
+                        </span>
+                        {readings.length > 0 && (
+                            <span className="bg-white text-slate-500 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-slate-200/60 shadow-xs">
+                                {readings.length} {readings.length === 1 ? 'registro' : 'registros'}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {readings.length > 0 && !isCollapsed && (
+                        <span className="hidden sm:inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2.5 py-1 rounded-md border border-blue-100 uppercase tracking-wider">
+                            Pág. {page + 1}
+                        </span>
+                    )}
+                    <span className="text-xs font-semibold text-slate-400 group-hover/service:text-blue-500 transition-colors hidden sm:inline-block">
+                        {isCollapsed ? 'Expandir' : 'Contraer'}
                     </span>
-                )}
-            </h3>
-
-            <div className="relative w-full min-w-0">
-                <div 
-                    ref={scrollContainerRef}
-                    className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4 px-1 md:snap-x md:snap-mandatory items-center w-full touch-pan-x"
-                >
-                    <style>{`
-                        div::-webkit-scrollbar { display: none; }
-                    `}</style>
-
-                    {page > 0 && (
-                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
-                            <button 
-                                onClick={handlePrev}
-                                disabled={loading}
-                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group"
-                                title="Página Anterior"
-                            >
-                                {loading ? <Loader2 className="animate-spin" /> : <ChevronLeft size={24} className="md:w-8 md:h-8" />}
-                                <span className="text-xs font-bold whitespace-nowrap">ANTERIOR</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {readings.map(reading => (
-                        <div key={reading.id} className="w-full md:min-w-[260px] md:w-[260px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group flex flex-row md:flex-col min-h-[160px] md:min-h-[320px] h-auto">
-                            <div 
-                                className="w-32 md:w-full min-h-full md:min-h-0 md:h-48 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (reading.photos && reading.photos.length > 0) {
-                                        onImageClick(reading.photos[0].url);
-                                    } else {
-                                        onView(reading);
-                                    }
-                                }}
-                            >
-                                {reading.photos && reading.photos.length > 0 ? (
-                                    <>
-                                        <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                            <ZoomIn size={24} className="text-white drop-shadow-md" />
-                                        </div>
-                                        {reading.photos.length > 1 && (
-                                            <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1">
-                                                <ImageIcon size={10} /> +{reading.photos.length - 1}
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                        <ImageIcon size={32} />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="p-3 flex-1 flex flex-col min-w-0">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
-                                    <Calendar size={14} className="text-blue-500" /> {formatDate(reading.date)}
-                                </div>
-                                
-                                {reading.comments && (
-                                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 leading-snug line-clamp-2" title={reading.comments}>
-                                        {reading.comments}
-                                    </div>
-                                )}
-
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
-                                        {getUserName(reading.userId).charAt(0)}
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <span className="truncate text-xs font-medium text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
-                                        <span className="text-[9px] text-slate-400">Reportador</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-auto pt-2 border-t border-slate-100 flex justify-end items-center gap-2">
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onView(reading);
-                                        }} 
-                                        className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors border border-slate-200"
-                                    >
-                                        Ver Detalle
-                                    </button>
-                                    {canDelete && (
-                                        <button onClick={(e) => { e.stopPropagation(); onDelete(reading.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-
-                    {hasMore && (
-                        <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
-                            <button 
-                                onClick={handleNext}
-                                disabled={loading}
-                                className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group"
-                            >
-                                {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={24} className="md:w-8 md:h-8" />}
-                                <span className="text-xs font-bold whitespace-nowrap">VER MÁS</span>
-                            </button>
-                        </div>
-                    )}
+                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover/service:text-blue-500 group-hover/service:border-blue-200 shadow-xs transition-all duration-200">
+                        {isCollapsed ? (
+                            <ChevronDown size={18} className="transform transition-transform duration-200 group-hover/service:scale-110" />
+                        ) : (
+                            <ChevronUp size={18} className="transform transition-transform duration-200 group-hover/service:scale-110" />
+                        )}
+                    </div>
                 </div>
             </div>
-            
-             {loading && readings.length === 0 && (
-                <div className="flex flex-col md:flex-row gap-4 overflow-hidden">
-                    {[1,2,3].map(i => (
-                        <div key={i} className="w-full md:min-w-[260px] h-40 md:h-[320px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
-                    ))}
+
+            {/* Carrusel de Mediciones */}
+            {!isCollapsed && (
+                <div className="mt-4 pt-4 border-t border-slate-200/60 animate-fade-in w-full min-w-0">
+                    <div className="relative w-full min-w-0">
+                        <div 
+                            ref={scrollContainerRef}
+                            className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-4 px-1 md:snap-x md:snap-mandatory items-center w-full touch-pan-x"
+                        >
+                            <style>{`
+                                div::-webkit-scrollbar { display: none; }
+                            `}</style>
+
+                            {page > 0 && (
+                                <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
+                                    <button 
+                                        onClick={handlePrev}
+                                        disabled={loading}
+                                        className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group/prev"
+                                        title="Página Anterior"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin" /> : <ChevronLeft size={24} className="md:w-8 md:h-8 group-hover/prev:scale-110 transition-transform" />}
+                                        <span className="text-xs font-bold whitespace-nowrap">ANTERIOR</span>
+                                    </button>
+                                </div>
+                            )}
+
+                            {readings.map(reading => (
+                                <div key={reading.id} className="w-full md:min-w-[260px] md:w-[260px] snap-start bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group/card flex flex-row md:flex-col min-h-[160px] md:min-h-[320px] h-auto">
+                                    <div 
+                                        className="w-32 md:w-full min-h-full md:min-h-0 md:h-48 bg-slate-100 relative overflow-hidden cursor-pointer shrink-0" 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (reading.photos && reading.photos.length > 0) {
+                                                onImageClick(reading.photos[0].url);
+                                            } else {
+                                                onView(reading);
+                                            }
+                                        }}
+                                    >
+                                        {reading.photos && reading.photos.length > 0 ? (
+                                            <>
+                                                <img src={reading.photos[0].url} alt="Lectura" className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"/>
+                                                <div className="absolute inset-0 bg-black/0 group-hover/card:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover/card:opacity-100">
+                                                    <ZoomIn size={24} className="text-white drop-shadow-md" />
+                                                </div>
+                                                {reading.photos.length > 1 && (
+                                                    <div className="absolute top-2 right-2 bg-black/60 text-white px-1.5 py-0.5 rounded text-[10px] backdrop-blur-sm flex items-center gap-1 animate-fade-in">
+                                                        <ImageIcon size={10} /> +{reading.photos.length - 1}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                <ImageIcon size={32} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-3 flex-1 flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
+                                            <Calendar size={14} className="text-blue-500" /> {formatDate(reading.date)}
+                                        </div>
+                                        
+                                        {reading.comments && (
+                                            <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 leading-snug line-clamp-2" title={reading.comments}>
+                                                {reading.comments}
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-500 shrink-0 border border-slate-200">
+                                                {getUserName(reading.userId).charAt(0)}
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="truncate text-xs font-medium text-slate-600" title={getUserName(reading.userId)}>{getUserName(reading.userId)}</span>
+                                                <span className="text-[9px] text-slate-400">Reportador</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-auto pt-2 border-t border-slate-100 flex justify-end items-center gap-2">
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onView(reading);
+                                                }} 
+                                                className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors border border-slate-200"
+                                            >
+                                                Ver Detalle
+                                            </button>
+                                            {canDelete && (
+                                                <button onClick={(e) => { e.stopPropagation(); onDelete(reading.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {hasMore && (
+                                <div className="w-full md:min-w-[100px] md:w-auto flex items-center justify-center snap-start min-h-[56px] md:min-h-[320px]">
+                                    <button 
+                                        onClick={handleNext}
+                                        disabled={loading}
+                                        className="flex flex-row md:flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-colors p-3 md:p-4 rounded-xl hover:bg-blue-50 h-full w-full border border-transparent hover:border-blue-100 bg-slate-50 md:bg-transparent group/next"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin" /> : <ChevronRight size={24} className="md:w-8 md:h-8 group-hover/next:scale-110 transition-transform" />}
+                                        <span className="text-xs font-bold whitespace-nowrap">VER MÁS</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {loading && readings.length === 0 && (
+                        <div className="flex flex-col md:flex-row gap-4 overflow-hidden mt-4">
+                            {[1,2,3].map(i => (
+                                <div key={i} className="w-full md:min-w-[260px] h-40 md:h-[320px] bg-slate-50 rounded-lg animate-pulse border border-slate-100"></div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -447,18 +488,22 @@ const MeterReadingsPage: React.FC = () => {
                       'Casa Chica': anyCollapsed
                    });
                 }}
-                className="bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 text-sm font-semibold transition-colors"
+                className={`px-4 py-2 rounded-lg border flex items-center gap-2 text-sm font-bold shadow-xs transition-all duration-200 active:scale-95 select-none ${
+                    (!expandedSections['Casa Grande'] || !expandedSections['Casa Chica'])
+                    ? 'bg-blue-50/80 hover:bg-blue-50 border-blue-200 text-blue-700 hover:text-blue-800'
+                    : 'bg-slate-100/80 hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-800'
+                }`}
                 title={(!expandedSections['Casa Grande'] || !expandedSections['Casa Chica']) ? "Expandir ambas casas" : "Comprimir ambas casas"}
              >
                 {(!expandedSections['Casa Grande'] || !expandedSections['Casa Chica']) ? (
                      <>
-                         <ChevronDown size={18} className="text-blue-500" />
-                         <span>Expandir Ambos</span>
+                         <ChevronDown size={18} className="text-blue-600 transition-transform duration-200 group-hover:translate-y-0.5" />
+                         <span>Expandir Casas</span>
                      </>
                 ) : (
                      <>
-                         <ChevronUp size={18} className="text-blue-500" />
-                         <span>Comprimir Ambos</span>
+                         <ChevronUp size={18} className="text-slate-600 transition-transform duration-200 group-hover:-translate-y-0.5" />
+                         <span>Comprimir Casas</span>
                      </>
                 )}
              </button>
@@ -501,24 +546,22 @@ const MeterReadingsPage: React.FC = () => {
                     <div key={location} className="animate-fade-in w-full min-w-0">
                         <div 
                             onClick={() => setExpandedSections(prev => ({ ...prev, [location]: !prev[location] }))}
-                            className="flex items-center justify-between gap-3 mb-6 pb-2 border-b border-slate-300 cursor-pointer select-none group"
+                            className="flex items-center justify-between gap-3 mb-6 pb-3 border-b border-slate-200 cursor-pointer select-none group/house"
                         >
                             <div className="flex items-center gap-3">
-                                <MapPin className="text-slate-400 group-hover:text-blue-500 transition-colors" size={24} />
-                                <h2 className="text-2xl font-bold text-slate-800 group-hover:text-slate-900 transition-colors">{location}</h2>
+                                <MapPin className="text-slate-400 group-hover/house:text-blue-550 transition-colors" size={24} />
+                                <h2 className="text-2xl font-bold text-slate-800 group-hover/house:text-slate-950 transition-colors">{location}</h2>
                             </div>
-                            <div className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
-                                {isExpanded ? (
-                                    <>
-                                         <span>Comprimir</span>
-                                         <ChevronUp size={16} />
-                                    </>
-                                ) : (
-                                     <>
-                                         <span>Expandir</span>
-                                         <ChevronDown size={16} />
-                                     </>
-                                )}
+                            <div className={`text-xs font-bold flex items-center gap-1.5 px-4 py-2 rounded-xl border transition-all duration-300 shadow-xs ${
+                                isExpanded 
+                                ? 'bg-amber-50 hover:bg-amber-100 border-amber-250 text-amber-700' 
+                                : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700'
+                            }`}>
+                                <span className="hidden sm:inline">{isExpanded ? 'Contraer Ubicación' : 'Expandir Ubicación'}</span>
+                                <span className="sm:hidden">{isExpanded ? 'Contraer' : 'Expandir'}</span>
+                                <div className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                    <ChevronDown size={16} />
+                                </div>
                             </div>
                         </div>
 
