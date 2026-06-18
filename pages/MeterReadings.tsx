@@ -16,12 +16,17 @@ interface ServiceSectionProps {
     onDelete: (id: string) => void;
     onImageClick: (url: string) => void;
     filterActive: boolean;
+    forceExpanded?: boolean;
 }
 
 const ServiceSection: React.FC<ServiceSectionProps> = ({ 
-    location, service, users, refreshTrigger, canDelete, onView, onDelete, onImageClick, filterActive 
+    location, service, users, refreshTrigger, canDelete, onView, onDelete, onImageClick, filterActive, forceExpanded
 }) => {
     const [isCollapsed, setIsCollapsed] = useState(true);
+    const [readings, setReadings] = useState<MeterReading[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [page, setPage] = useState(0);
     
     const PAGE_SIZE = 3; 
     
@@ -30,6 +35,13 @@ const ServiceSection: React.FC<ServiceSectionProps> = ({
     useEffect(() => {
         loadPage(0);
     }, [refreshTrigger, location, service]);
+
+    // Force expand/collapse when prop changes from parent
+    useEffect(() => {
+        if (typeof forceExpanded === 'boolean') {
+            setIsCollapsed(!forceExpanded);
+        }
+    }, [forceExpanded]);
 
     // Auto-expand if service filter matches specifically, or when filters are active
     useEffect(() => {
@@ -290,6 +302,12 @@ const MeterReadingsPage: React.FC = () => {
     'Casa Chica': false
   });
 
+  // Expandir/comprimir todos los medidores dentro de cada casa (por defecto comprimidos)
+  const [expandedMeters, setExpandedMeters] = useState<Record<string, boolean>>({
+    'Casa Grande': false,
+    'Casa Chica': false
+  });
+
   // Modals Alertas
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{isOpen: boolean, title: string, message: string, type: 'success'|'error'|'info'}>({
@@ -536,7 +554,7 @@ const MeterReadingsPage: React.FC = () => {
                 const availableServices = getServicesForLocation(location);
                 const servicesToShow = serviceFilter === 'Todos' 
                     ? availableServices 
-                    : availableServices.filter(s => s === serviceFilter);
+                     : availableServices.filter(s => s === serviceFilter);
 
                 if (servicesToShow.length === 0) return null;
 
@@ -549,8 +567,8 @@ const MeterReadingsPage: React.FC = () => {
                             className="flex items-center justify-between gap-3 mb-6 pb-3 border-b border-slate-200 cursor-pointer select-none group/house"
                         >
                             <div className="flex items-center gap-3">
-                                <MapPin className="text-slate-400 group-hover/house:text-blue-550 transition-colors" size={24} />
-                                <h2 className="text-2xl font-bold text-slate-800 group-hover/house:text-slate-950 transition-colors">{location}</h2>
+                                <MapPin className="text-slate-400 group-hover/house:text-blue-600 transition-colors" size={24} />
+                                <h2 className="text-2xl font-bold text-slate-800 group-hover/house:text-slate-900 transition-colors">{location}</h2>
                             </div>
                             <div className={`text-xs font-bold flex items-center gap-1.5 px-4 py-2 rounded-xl border transition-all duration-300 shadow-xs ${
                                 isExpanded 
@@ -562,11 +580,43 @@ const MeterReadingsPage: React.FC = () => {
                                 <div className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
                                     <ChevronDown size={16} />
                                 </div>
-                            </div>
+                             </div>
                         </div>
 
                         {isExpanded && (
-                            <div className="pl-0 md:pl-4 border-l-0 md:border-l-2 border-slate-100 w-full min-w-0 animate-fade-in">
+                            <div className="pl-0 md:pl-4 border-l-0 md:border-l-2 border-slate-100 w-full min-w-0 animate-fade-in space-y-4">
+                                {/* Sub-action bar to expand/collapse other meters */}
+                                <div className="flex items-center justify-between mb-4 pb-2 border-b border-dashed border-slate-200 select-none">
+                                    <div className="flex items-center gap-2">
+                                        <Gauge className="text-slate-400" size={16} />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipos de Medidores</span>
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const currentVal = !expandedMeters[location];
+                                            setExpandedMeters(prev => ({ ...prev, [location]: currentVal }));
+                                        }}
+                                        className={`group px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold shadow-xs transition-all duration-200 active:scale-95 ${
+                                            expandedMeters[location]
+                                            ? 'bg-amber-50/70 hover:bg-amber-100 border-amber-200 text-amber-700'
+                                            : 'bg-blue-50/70 hover:bg-blue-100 border-blue-200 text-blue-700'
+                                        }`}
+                                    >
+                                        {expandedMeters[location] ? (
+                                            <>
+                                                <ChevronUp size={14} className="transition-transform group-hover:-translate-y-0.5" />
+                                                <span>Contraer Todo</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronDown size={14} className="transition-transform group-hover:translate-y-0.5" />
+                                                <span>Expandir Todo</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
                                 {servicesToShow.map(service => (
                                     <ServiceSection 
                                         key={`${location}-${service}`}
@@ -579,6 +629,7 @@ const MeterReadingsPage: React.FC = () => {
                                         onDelete={handleDeleteClick}
                                         onImageClick={(url) => setPreviewImage(url)}
                                         filterActive={serviceFilter !== 'Todos'}
+                                        forceExpanded={expandedMeters[location]}
                                     />
                                 ))}
                             </div>
