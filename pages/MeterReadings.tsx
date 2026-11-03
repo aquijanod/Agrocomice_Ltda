@@ -282,8 +282,9 @@ const MeterReadingsPage: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingReading, setEditingReading] = useState<Partial<MeterReading>>({});
   
-  // Estado de carga de imagen
+  // Estado de carga de imagen y guardado
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Zoom y Pan States para el visualizador
@@ -373,7 +374,10 @@ const MeterReadingsPage: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving || isCompressing) return;
+
     if (editingReading.date && editingReading.photos && editingReading.photos.length > 0) {
+        setIsSaving(true);
         try {
             await saveMeterReading(editingReading as MeterReading);
             setIsModalOpen(false);
@@ -381,6 +385,8 @@ const MeterReadingsPage: React.FC = () => {
         } catch (error) {
             console.error("Error al guardar medidor:", error);
             setAlertState({isOpen: true, title: 'Error', message: 'Error al guardar el registro.', type: 'error'});
+        } finally {
+            setIsSaving(false);
         }
     } else if (!editingReading.photos || editingReading.photos.length === 0) {
         setAlertState({isOpen: true, title: 'Falta Foto', message: 'Debes subir al menos una foto del medidor.', type: 'error'});
@@ -723,17 +729,39 @@ const MeterReadingsPage: React.FC = () => {
       {/* Modal Detalle/Edición */}
       {isModalOpen && (
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-fade-in">
+              <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-fade-in overflow-hidden">
+                  {/* Overlay de Guardado */}
+                  {isSaving && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center z-30 animate-fade-in">
+                          <Loader2 className="animate-spin text-blue-600 mb-3" size={40} />
+                          <p className="text-sm font-bold text-slate-800">Guardando registro del medidor...</p>
+                          <p className="text-xs text-slate-500 mt-1">Por favor espere un momento</p>
+                      </div>
+                  )}
+
                   <div className="flex justify-between items-center p-6 border-b border-slate-100">
                       <h2 className="text-xl font-bold text-slate-800">{isViewMode ? 'Detalle Registro' : 'Nuevo Registro'}</h2>
-                      <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                      <button 
+                          onClick={() => !isSaving && setIsModalOpen(false)} 
+                          disabled={isSaving} 
+                          className="text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                          <X size={24} />
+                      </button>
                   </div>
 
                   <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                              <input type="date" required disabled={isViewMode} value={editingReading.date} onChange={e => setEditingReading({...editingReading, date: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"/>
+                              <input 
+                                  type="date" 
+                                  required 
+                                  disabled={isViewMode || isSaving} 
+                                  value={editingReading.date} 
+                                  onChange={e => setEditingReading({...editingReading, date: e.target.value})} 
+                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                              />
                           </div>
                            <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Reportado Por</label>
@@ -746,20 +774,32 @@ const MeterReadingsPage: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Lugar</label>
-                              <select required disabled={isViewMode} value={editingReading.location} onChange={e => {
+                              <select 
+                                  required 
+                                  disabled={isViewMode || isSaving} 
+                                  value={editingReading.location} 
+                                  onChange={e => {
                                       const newLoc = e.target.value as any;
                                       const validServices = getServicesForLocation(newLoc);
                                       let newService = editingReading.serviceType;
                                       if (!validServices.includes(newService as string)) newService = 'Agua';
                                       setEditingReading({...editingReading, location: newLoc, serviceType: newService});
-                                  }} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500">
+                                  }} 
+                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                              >
                                   <option value="Casa Grande">Casa Grande</option>
                                   <option value="Casa Chica">Casa Chica</option>
                               </select>
                           </div>
                            <div>
                               <label className="block text-sm font-medium text-slate-700 mb-1">Servicio</label>
-                              <select required disabled={isViewMode} value={editingReading.serviceType} onChange={e => setEditingReading({...editingReading, serviceType: e.target.value as any})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500">
+                              <select 
+                                  required 
+                                  disabled={isViewMode || isSaving} 
+                                  value={editingReading.serviceType} 
+                                  onChange={e => setEditingReading({...editingReading, serviceType: e.target.value as any})} 
+                                  className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                              >
                                   {getServicesForLocation(editingReading.location || 'Casa Grande').map(srv => <option key={srv} value={srv}>{srv}</option>)}
                               </select>
                           </div>
@@ -768,7 +808,7 @@ const MeterReadingsPage: React.FC = () => {
                       <div>
                            <label className="block text-sm font-medium text-slate-700 mb-1">Nota / Comentario</label>
                            <textarea
-                               disabled={isViewMode}
+                               disabled={isViewMode || isSaving}
                                value={editingReading.comments || ''}
                                onChange={e => setEditingReading({...editingReading, comments: e.target.value})}
                                className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 text-sm"
@@ -782,8 +822,17 @@ const MeterReadingsPage: React.FC = () => {
                           {!isViewMode && (
                             <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors mb-4 relative">
                                 {isCompressing && <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}
-                                <input type="file" multiple accept="image/*" capture="environment" id="file-upload" className="hidden" onChange={handleFileUpload}/>
-                                <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                                <input 
+                                    type="file" 
+                                    multiple 
+                                    accept="image/*" 
+                                    capture="environment" 
+                                    id="file-upload" 
+                                    disabled={isCompressing || isSaving} 
+                                    className="hidden" 
+                                    onChange={handleFileUpload}
+                                />
+                                <label htmlFor="file-upload" className={`cursor-pointer flex flex-col items-center gap-2 ${(isCompressing || isSaving) ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <Upload className="text-slate-400" size={24} />
                                     <span className="text-blue-600 font-medium">Subir Foto o Tomar Cámara</span>
                                 </label>
@@ -801,7 +850,16 @@ const MeterReadingsPage: React.FC = () => {
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
                                             <ZoomIn className="text-white" size={20} />
                                         </div>
-                                        {!isViewMode && <button type="button" onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>}
+                                        {!isViewMode && (
+                                            <button 
+                                                type="button" 
+                                                disabled={isSaving} 
+                                                onClick={() => removePhoto(idx)} 
+                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                           </div>
@@ -809,8 +867,39 @@ const MeterReadingsPage: React.FC = () => {
                   </form>
 
                   <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
-                      <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">{isViewMode ? 'Cerrar' : 'Cancelar'}</button>
-                      {!isViewMode && <button type="button" onClick={(e) => handleSave(e as any)} disabled={isCompressing} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50">{isCompressing ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Guardar</button>}
+                      <button 
+                          type="button" 
+                          onClick={() => setIsModalOpen(false)} 
+                          disabled={isSaving} 
+                          className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                          {isViewMode ? 'Cerrar' : 'Cancelar'}
+                      </button>
+                      {!isViewMode && (
+                          <button 
+                              type="button" 
+                              onClick={(e) => handleSave(e as any)} 
+                              disabled={isCompressing || isSaving} 
+                              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                          >
+                              {isSaving ? (
+                                  <>
+                                      <Loader2 className="animate-spin" size={18} />
+                                      <span>Guardando...</span>
+                                  </>
+                              ) : isCompressing ? (
+                                  <>
+                                      <Loader2 className="animate-spin" size={18} />
+                                      <span>Procesando fotos...</span>
+                                  </>
+                              ) : (
+                                  <>
+                                      <Save size={18} />
+                                      <span>Guardar</span>
+                                  </>
+                              )}
+                          </button>
+                      )}
                   </div>
               </div>
           </div>
